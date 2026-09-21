@@ -125,6 +125,25 @@ let songById = new Map();
 
 const getSong = (id) => songById.get(id) ?? null;
 
+/**
+ * Tags that explain why a song matched, for words the title and artist do not
+ * contain. Searching "praise" finds 10,000 Reasons through its tag, and without
+ * this the row gives no hint why it is in the list.
+ */
+function matchedTags(song, query) {
+  const words = String(query ?? '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length || !song.tags.length) return [];
+  const plain = `${song.title} ${song.artist}`.toLowerCase();
+  const hits = new Set();
+  for (const word of words) {
+    if (plain.includes(word)) continue; // the row already shows why
+    for (const tag of song.tags) {
+      if (tag.toLowerCase().includes(word)) hits.add(tag);
+    }
+  }
+  return [...hits];
+}
+
 function searchSongs(text) {
   const words = text.trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return songs;
@@ -448,7 +467,7 @@ function renderSong(g, e, i) {
       <span class="chip${moved ? ' changed' : ''}">${esc(eff.key || '--')}</span>
       <span class="chip${bpmChanged ? ' changed' : ''}">${eff.bpm ?? '--'} BPM</span>
       ${moved || bpmChanged
-        ? `<span class="chip orig">- orig ${esc(song.key || '--')}${song.camelot ? ` ${esc(song.camelot)}` : ''}${song.bpm != null ? `, ${song.bpm} BPM` : ''}</span>`
+        ? `<span class="chip orig">- orig ${esc(song.key || '--')}${song.camelot ? `, ${esc(song.camelot)}` : ''}${song.bpm != null ? `, ${song.bpm} BPM` : ''}</span>`
         : ''}
       <span class="grow"></span>
       ${song.urls.length
@@ -495,7 +514,7 @@ function renderEditor(g, e, song, eff) {
             aria-label="Transpose up one semitone">${ic.plus}</button>
     <span class="chip">${esc(eff.key || '--')}</span>
     ${camBadge(eff.camText)}
-    ${semi ? `<span class="chip orig">- orig ${esc(song.key || '--')} ${esc(song.camelot || '--')}</span>` : ''}
+    ${semi ? `<span class="chip orig">- orig ${esc(song.key || '--')}, ${esc(song.camelot || '--')}</span>` : ''}
     ${canMove ? '' : '<span class="chip orig">- no key on this song</span>'}
   </div>
   <div class="ed-row">
@@ -591,14 +610,27 @@ function resultsHtml(anchor) {
 
   return found
     .map(({ song, semi, fit }) => {
+      const moved = fit && semi !== 0;
+      // When a transpose is needed, lead with the key it will become, not the one
+      // it has now, and keep the original alongside.
+      const newKey = moved ? keyForCamelot(fit.cam) : song.key;
       const chips = [
-        `<span class="chip">${esc(song.key || '--')}</span>`,
+        `<span class="chip${moved ? ' changed' : ''}">${esc(newKey || '--')}</span>`,
         `<span class="chip">${song.bpm ?? '--'} BPM</span>`,
       ];
       if (fit) {
         chips.push(semi === 0
           ? `<span class="chip fit">${esc(fit.rel)}</span>`
           : `<span class="chip fit">${semi > 0 ? '+' : ''}${semi} &rarr; ${esc(fit.cam)}</span>`);
+      }
+      if (moved) {
+        // same wording as a set list row: - orig KEY, CAMELOT, N BPM
+        chips.push(`<span class="chip orig">- orig ${esc(song.key || '--')}${
+          song.camelot ? `, ${esc(song.camelot)}` : ''}${
+          song.bpm != null ? `, ${song.bpm} BPM` : ''}</span>`);
+      }
+      for (const tag of matchedTags(song, ui.searchState.q)) {
+        chips.push(`<span class="tag hit">${esc(tag)}</span>`);
       }
       return `
 <li class="result">
@@ -608,7 +640,7 @@ function resultsHtml(anchor) {
       <span class="r-artist">${esc(song.artist)}</span>
       <span class="r-meta">${chips.join('')}</span>
     </span>
-    ${camBadge(fit && semi !== 0 ? fit.cam : song.camelot)}
+    ${camBadge(moved ? fit.cam : song.camelot, moved ? 'changed' : '')}
     <span class="radd">${ic.plus}</span>
   </button>
 </li>`;
@@ -656,7 +688,10 @@ function renderAddGroup() {
 /** One library row. Nothing here adds to a set list or changes a key. */
 function libRow(song) {
   const open = ui.expandedLib.has(song.id);
-  const shown = song.tags.slice(0, TAGS_SHOWN);
+  // a tag that explains the match comes first, so it is never the one clipped off
+  const hits = matchedTags(song, ui.browseQ);
+  const ordered = [...hits, ...song.tags.filter((t) => !hits.includes(t))];
+  const shown = ordered.slice(0, Math.max(TAGS_SHOWN, hits.length));
   const more = song.tags.length - shown.length;
   return `
 <li class="libitem">
@@ -667,7 +702,7 @@ function libRow(song) {
       <span class="r-meta">
         <span class="chip">${esc(song.key || '--')}</span>
         <span class="chip">${song.bpm ?? '--'} BPM</span>
-        ${shown.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}
+        ${shown.map((t) => `<span class="tag${hits.includes(t) ? ' hit' : ''}">${esc(t)}</span>`).join('')}
         ${more > 0 ? `<span class="tag more">+${more}</span>` : ''}
       </span>
     </span>
