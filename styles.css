@@ -242,6 +242,16 @@ h1 {
 
 .note { margin: 20px 4px 0; color: var(--muted); font-size: 12.5px; }
 
+/* The licence notice. Small, but it has to be reachable: it is how a reader
+   learns the terms and where to get the source. */
+.foot { margin: 26px 4px 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.foot p { margin: 0; }
+.foot a { color: var(--muted); }
+.foot a:hover { color: var(--accent); }
+/* Plain inline, on purpose. An inline-flex link is one atomic box, which lets the
+   line break straight after it and strands the full stop on its own line. */
+.ghlink svg { display: inline-block; vertical-align: -2px; margin-right: 4px; }
+
 /* Sits in the page above the set list, not floating over it. Dismissed for good. */
 .hint {
   display: flex;

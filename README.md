@@ -228,6 +228,11 @@ This program is free software: you can redistribute it and modify it under the t
 **GNU General Public License, version 3 or later**. The full text is in `LICENSE`, or at
 <https://www.gnu.org/licenses/>.
 
+The page itself carries the notice in a footer, with a link to the licence and a GitHub link
+to the source, because that is how a reader of the running page learns the terms and can get
+the code. **If the repository is ever renamed or moved, change `SOURCE_URL` near the top of
+`app.js`.** It is the only place that address appears.
+
 In plain words: you may use it, change it and even sell it, but if you give out a changed
 copy you must also give out its source under the same licence. There is no warranty of any
 kind.
