@@ -1,0 +1,88 @@
+<!doctype html>
+<!--
+  Set List Builder - build a song set list with Camelot key matching.
+  Copyright (C) 2026 Vince San Juan
+
+  This program is free software: you can redistribute it and/or modify it under
+  the terms of the GNU General Public License as published by the Free Software
+  Foundation, either version 3 of the License, or (at your option) any later
+  version. See the LICENSE file, or <https://www.gnu.org/licenses/>.
+
+  This program is distributed WITHOUT ANY WARRANTY, without even the implied
+  warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+-->
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <meta name="description" content="Build a song set list with Camelot key matching.">
+  <title>Set List Builder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#groups">Skip to set list</a>
+
+  <main class="app">
+    <header class="top">
+      <div class="topline">
+        <h1>Set List Builder</h1>
+        <div class="actions">
+          <button type="button" id="btn-browse" class="icon-btn" aria-pressed="false"
+                  aria-label="Search the song library"></button>
+          <button type="button" id="btn-undo" class="icon-btn" aria-label="Undo" disabled></button>
+          <button type="button" id="btn-redo" class="icon-btn" aria-label="Redo" disabled></button>
+          <button type="button" id="btn-copy" class="icon-btn" aria-label="Copy set list as text"></button>
+          <button type="button" id="btn-share" class="icon-btn" aria-label="Copy a share link for this set list"></button>
+          <button type="button" id="btn-theme" class="icon-btn" aria-label="Switch to light mode"></button>
+        </div>
+      </div>
+      <div class="summary" id="summary"></div>
+    </header>
+
+    <div class="hint" id="hint">
+      <p>
+        Hold a group or song to drag it, or use its move button. Double tap a name to edit it.
+        Swipe a row sideways to delete it.
+      </p>
+      <button type="button" id="btn-hint-close" class="icon-btn" aria-label="Hide this hint"></button>
+    </div>
+
+    <div id="browse"></div>
+    <div id="data-errors" class="banner" hidden></div>
+
+    <div id="groups"></div>
+    <div id="group-add"></div>
+
+  </main>
+
+  <div class="toast" id="toast">
+    <span id="status" role="status" aria-live="polite"></span>
+    <button type="button" id="btn-toast-close" class="icon-btn" aria-label="Dismiss message"></button>
+  </div>
+
+  <dialog id="confirm">
+    <form method="dialog">
+      <h2 id="confirm-title">Delete</h2>
+      <p id="confirm-text"></p>
+      <menu>
+        <button type="submit" value="cancel" class="btn outline">Cancel</button>
+        <button type="submit" value="ok" class="btn danger">Delete</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <dialog id="textout">
+    <form method="dialog">
+      <h2 id="textout-title">Copy this text</h2>
+      <textarea id="textout-area" rows="12" readonly aria-labelledby="textout-title"></textarea>
+      <menu><button type="submit" value="ok" class="btn">Close</button></menu>
+    </form>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
