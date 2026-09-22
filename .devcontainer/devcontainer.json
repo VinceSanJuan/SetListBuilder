@@ -1,0 +1,16 @@
+{
+  "name": "Set List Builder",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "mechatroner.rainbow-csv",
+        "janisdd.vscode-edit-csv"
+      ]
+    }
+  },
+  "forwardPorts": [8080],
+  "portsAttributes": {
+    "8080": { "label": "Set List Builder", "onAutoForward": "openPreview" }
+  }
+}

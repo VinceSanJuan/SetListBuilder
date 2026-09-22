@@ -138,6 +138,73 @@ export function bestShift(cand, anchor, maxSemi) {
   return null;
 }
 
+/* ---------- reading the library from a spreadsheet ---------- */
+
+const unquote = (cell) => {
+  const value = cell.trim();
+  // Excel quotes a field that holds a quote when it saves tab delimited text
+  return value.length > 1 && value.startsWith('"') && value.endsWith('"')
+    ? value.slice(1, -1).replace(/""/g, '"')
+    : value;
+};
+
+/**
+ * Split tab separated text into rows of cells.
+ *
+ * Tabs are the separator on purpose: a spreadsheet cell cannot hold one, so there
+ * is no quoting to get wrong. A comma separated file would need a real parser,
+ * because a title such as "10,000 Reasons (Bless The Lord)" holds a comma.
+ * Copes with CRLF from Excel and with the byte order mark it writes.
+ */
+export function parseTsv(text) {
+  const src = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  return src
+    .split(/\r\n|\n|\r/)
+    .filter((line) => line.trim() !== '')
+    .map((line) => line.split('\t').map(unquote));
+}
+
+const splitList = (value) => (value ? value.split(';').map((v) => v.trim()).filter(Boolean) : []);
+
+/**
+ * Turn songs.tsv into the same shape prepareSongs takes.
+ * Columns are found by name, so their order does not matter and any extra column
+ * is ignored. `tags` and `urls` hold several values separated by a semicolon, a
+ * url being either a plain address or `Label=address`.
+ */
+export function songsFromTsv(text) {
+  const rows = parseTsv(text);
+  if (!rows.length) return [];
+
+  const head = rows[0].map((h) => h.trim().toLowerCase());
+  if (!head.includes('title')) {
+    throw new Error('the first row must name the columns, and must include title');
+  }
+
+  return rows.slice(1).map((cells) => {
+    const get = (name) => {
+      const at = head.indexOf(name);
+      return at < 0 ? '' : (cells[at] ?? '').trim();
+    };
+    const id = get('id');
+    return {
+      ...(id ? { id } : {}),
+      title: get('title'),
+      artist: get('artist'),
+      key: get('key'),
+      bpm: get('bpm'),
+      camelot: get('camelot'),
+      tags: splitList(get('tags')),
+      urls: splitList(get('urls')).map((entry) => {
+        const at = entry.indexOf('=');
+        return at < 0
+          ? entry
+          : { label: entry.slice(0, at).trim(), url: entry.slice(at + 1).trim() };
+      }),
+    };
+  });
+}
+
 /* ---------- song records ---------- */
 
 /** Fill in whichever of key/camelot is blank; report a disagreement. */
@@ -154,7 +221,7 @@ export function resolveKey(keyText, camelotText) {
   if (hasCam && !fromCam) return { error: `unrecognized camelot "${camelotText}"` };
 
   if (hasKey && hasCam && fromKey !== camelotStr(fromCam)) {
-    return { error: `key "${keyText}" is ${fromKey}, but camelot says ${camelotStr(fromCam)}` };
+    return { error: `key "${keyText}" is camelot ${fromKey}, but file says ${camelotStr(fromCam)}` };
   }
 
   const camelot = fromKey || camelotStr(fromCam);
@@ -188,16 +255,16 @@ function normalizeUrls(raw, where, errors) {
 }
 
 /**
- * Validate and normalize the raw songs.json array.
+ * Validate and normalize the rows read from songs.tsv.
  * Returns { songs, errors }. Bad songs are dropped, not silently fixed.
- * Ids are stable slugs of title + artist, so reordering songs.json is safe.
+ * Ids are stable slugs of title + artist, so reordering songs.tsv is safe.
  * Only the title is required. An unknown artist may be left out.
  */
 export function prepareSongs(raw) {
   const songs = [];
   const errors = [];
 
-  if (!Array.isArray(raw)) return { songs, errors: ['songs.json must be a JSON array'] };
+  if (!Array.isArray(raw)) return { songs, errors: ['the song rows could not be read'] };
 
   const seen = new Map();
 

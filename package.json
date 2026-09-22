@@ -5,7 +5,7 @@
   "license": "GPL-3.0-or-later",
   "description": "Static set-list builder. The type field lets Node import music.js as an ES module for tools/validate.mjs; the browser needs no build step.",
   "scripts": {
-    "validate": "node tools/validate.mjs songs.json",
+    "validate": "node tools/validate.mjs songs.tsv",
     "serve": "py -m http.server 8080"
   }
 }

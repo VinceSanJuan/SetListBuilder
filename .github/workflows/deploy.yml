@@ -1,4 +1,4 @@
-# Checks songs.json, then publishes the site to GitHub Pages.
+# Checks songs.tsv, then publishes the site to GitHub Pages.
 # Pages source must be set to "GitHub Actions" in Settings > Pages.
 # Nothing is committed back to the repo, so this workflow cannot trigger itself.
 
@@ -30,8 +30,8 @@ jobs:
 
       # Fails the deploy when a key, Camelot value or BPM is wrong,
       # so bad song data never reaches the live page.
-      - name: Check songs.json
-        run: node tools/validate.mjs songs.json
+      - name: Check songs.tsv
+        run: node tools/validate.mjs songs.tsv
 
       - uses: actions/configure-pages@v5
 

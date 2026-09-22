@@ -5,12 +5,13 @@ Static site, no backend, no build step. It runs on GitHub Pages.
 
 | File | What it does |
 | --- | --- |
-| `songs.json` | Your song library. The only file you edit by hand. |
+| `songs.tsv` | Your song library, a spreadsheet. The only file you edit by hand. |
 | `music.js` | Camelot wheel maths and song checking. Used by the page and by the checker. |
 | `app.js` | The page behaviour. |
 | `index.html`, `styles.css` | The page and its styling. |
-| `tools/validate.mjs` | Checks `songs.json`. Run by the Action before every deploy. |
+| `tools/validate.mjs` | Checks `songs.tsv`. Run by the Action before every deploy. |
 | `.github/workflows/deploy.yml` | Checks the data, then publishes to Pages. |
+| `.devcontainer/` | Sets up a Codespace with a spreadsheet editor. |
 | `LICENSE` | The GNU General Public License, version 3. |
 
 ## Run it on your machine
@@ -23,56 +24,85 @@ over http. Either is fine:
 ...then open `http://localhost:8080/`. Or install the **Live Server** extension in
 VS Code, right click `index.html` and choose *Open with Live Server*.
 
-Edit `songs.json`, save, refresh the page. There is nothing to rebuild.
+Edit `songs.tsv`, save, refresh the page. There is nothing to rebuild.
 
 To check the data the same way the Action does:
 
-    node tools/validate.mjs songs.json
+    node tools/validate.mjs
 
-## Edit songs.json
+## Edit songs.tsv
 
-A JSON array. Copy this template for a new song:
+The library is a tab separated file, so any spreadsheet opens it and any spreadsheet can
+paste straight into it. The first row names the columns:
 
-```json
-  {
-    "title": "Song Title",
-    "artist": "Artist Name",
-    "key": "G",
-    "bpm": 120,
-    "camelot": "",
-    "tags": ["opening", "gentle"],
-    "urls": [
-      { "label": "YouTube", "url": "https://example.com/watch" },
-      { "label": "Chords", "url": "https://example.com/chords" }
-    ]
-  }
+```
+title	artist	key	bpm	camelot	tags	urls
+10,000 Reasons (Bless The Lord)	Matt Redman	G	145		praise	WT=https://example.com/x
+Araw Araw	MJ Flores	D	130
+Yeshua	Jesus Image	A	92		quiet;slow
 ```
 
-| Field | Required | Notes |
+| Column | Required | Notes |
 | --- | --- | --- |
-| `title` | yes | Duplicates are allowed. `Build My Life` appears twice in the sample data. |
-| `artist` | no | Tells duplicate titles apart. Leave it out when it is unknown. |
+| `title` | yes | Duplicates are allowed. `Build My Life` appears twice. |
+| `artist` | no | Tells duplicate titles apart. Leave it out when unknown. |
 | `key` | no | See the key formats below. |
-| `bpm` | no | A number from 20 to 400, or leave it out. |
-| `camelot` | no | Leave blank and it is worked out from the key. |
-| `tags` | no | Any words you like. They are searchable. |
-| `urls` | no | `{ "label": ..., "url": ... }` pairs. A plain URL string also works. |
-| `id` | no | Only if you want to fix the id yourself. See *Ids* below. |
+| `bpm` | no | A number from 20 to 400, or leave the cell empty. |
+| `camelot` | no | Leave it empty and it is worked out from the key. |
+| `tags` | no | Several tags in one cell, separated by `;`. Searchable. |
+| `urls` | no | Several in one cell, separated by `;`. Either `Label=address` or a bare address. |
+| `id` | no | An extra column, only if you want to fix the id yourself. See *Ids*. |
+
+**Why tabs and not commas.** A spreadsheet cell cannot hold a tab, so there is nothing to
+quote and nothing to get wrong. Commas would need quoting: one of your own titles is
+`10,000 Reasons (Bless The Lord)`.
+
+**Columns are found by name**, so their order does not matter and any extra column you add
+for your own use is ignored. Short rows are fine: the three data rows above are all valid,
+even though two of them stop early.
 
 **Key formats.** All of these are understood: `G`, `Am`, `Eb`, `F#m`, `Bb`, `G major`,
 `a minor`. Use a lowercase `b` for a flat. The page then shows the tidy form, `G maj`
 or `A min`.
 
 **Key and Camelot.** Give either one and the other is filled in, because the two say the
-same thing. Give both and they must agree, or the build fails. This is on purpose: a wrong
+same thing. Give both and they must agree, or the check fails. This is on purpose: a wrong
 key is worse than a failed build. Give neither and the song still works, but it takes no
 part in Camelot matching.
 
 **Ids.** Each song gets a stable id from its title and artist, such as
 `build-my-life-passion`, or from the title alone when there is no artist. A second song with
-the same id gets `-2` on the end.
-Because the id does not depend on row order, you can sort or rearrange `songs.json` freely
-without breaking a saved set list or a share link.
+the same id gets `-2` on the end. Because the id does not depend on row order, you can sort
+or rearrange `songs.tsv` freely without breaking a saved set list or a share link.
+
+## Edit it in a browser, from anywhere
+
+You do not need anything installed. Two ways, both signed in as you, with no extra service
+holding your data and no token to leak:
+
+**github.dev**, for a quick change. Open the repository and press `.` — full VS Code in the
+browser. Edit, then commit from the Source Control panel. Free, instant, no terminal.
+
+**Codespaces**, when you want a grid and a terminal. Open the repository, press the **Code**
+button and start a Codespace. The `.devcontainer/` folder in this repository asks for two
+extensions, so they are ready when it opens:
+
+- **Edit csv** (`janisdd.vscode-edit-csv`) — right click `songs.tsv` and choose *Edit as csv*
+  to get a real spreadsheet grid: add rows, delete rows, drag columns. Set the delimiter to
+  tab if it does not guess it. This is the one to use for entering songs in bulk.
+- **Rainbow CSV** (`mechatroner.rainbow-csv`) — colours each column and lines them up while
+  you read the plain text, and warns when a row has the wrong number of columns.
+
+In a Codespace you also get a terminal, so `node tools/validate.mjs` and
+`python3 -m http.server 8080` both work. Port 8080 is forwarded for you, so the preview opens
+in a browser tab.
+
+Free allowances change, so check the current Codespaces figure on your GitHub billing page.
+`github.dev` is free and unmetered.
+
+**Pasting from a spreadsheet.** Select the cells in Excel or Google Sheets and copy. The
+clipboard is already tab separated, so it pastes straight into `songs.tsv` with nothing to
+convert. Keep the header row at the top.
 
 ## Publish on GitHub Pages
 
@@ -80,7 +110,7 @@ without breaking a saved set list or a share link.
 2. Open **Settings > Pages**. Under **Build and deployment**, set **Source** to
    **GitHub Actions**. Do not pick a branch. There is nothing else to fill in.
 3. Open the **Actions** tab. If Actions are disabled, enable them.
-4. Push any change to `main`. The **Deploy to Pages** workflow runs, checks `songs.json`,
+4. Push any change to `main`. The **Deploy to Pages** workflow runs, checks `songs.tsv`,
    and publishes. It takes about half a minute.
 5. Your site is at `https://<your-username>.github.io/<repository-name>/`. The exact
    address also appears on the Settings > Pages screen and on the finished deploy.
@@ -90,7 +120,7 @@ Notes:
 - The workflow needs no extra secrets or tokens. It asks for `pages: write` and
   `id-token: write` itself, and only reads the repository.
 - Nothing is committed back to the repository, so the workflow cannot set itself off again.
-- If `songs.json` has a mistake, the check fails and **the old site stays up**. Read the
+- If `songs.tsv` has a mistake, the check fails and **the old site stays up**. Read the
   error in the Actions log.
 - You can also start a deploy by hand: Actions > Deploy to Pages > Run workflow.
 - A private repository needs a paid GitHub plan for Pages. A public one is free.
@@ -135,13 +165,13 @@ the row tells you where it came from.
 **Its key can be changed later.** Open such a song in the editor and it gets a **Key** row of
 its own, the same two pickers as the form, so a key left out at the start can be filled in and
 a wrong one corrected. Changing the key resets the transpose, because a transpose counted from
-the old key means nothing against the new one. A library song has no Key row: `songs.json`
+the old key means nothing against the new one. A library song has no Key row: `songs.tsv`
 stays the source of truth for those, so they are transposed instead.
 
 Two things to keep in mind. A hand typed song lives **in the set list, not in the library**,
-because a web page cannot write to `songs.json`. So it does not show up in searches or in the
+because a web page cannot write to `songs.tsv`. So it does not show up in searches or in the
 library view, and it is carried only by this browser and by share links. To keep it for good,
-add it to `songs.json` in the normal way. Only a title is required, the same rule `songs.json`
+add it to `songs.tsv` in the normal way. Only a title is required, the same rule `songs.tsv`
 follows, so *Add song* turns on as soon as you have typed one.
 
 **Look without touching.** The magnifying glass in the top row opens the whole library as a
@@ -232,15 +262,14 @@ from the last group back to the first.
    desktop.
 4. **Tags show the first three, then a count.** A row lists three tags and adds a `+2` chip
    for the rest. The strip is also clipped with a fading right edge (the `.tags` rule in
-   `styles.css`) in case a single tag is very long. Note that the sample `songs.json` has no
-   tags yet, so nothing appears until you add some.
+   `styles.css`) in case a single tag is very long.
 5. **Share links grow with the set.** A thirty song set makes a link a few hundred
    characters long. It works, but it is not tidy.
 6. **Undo history is not saved.** The set list survives a reload; the undo steps do not.
-7. **A hand typed song never reaches `songs.json`.** It is held in the set list itself, so
+7. **A hand typed song never reaches `songs.tsv`.** It is held in the set list itself, so
    it travels in share links and in this browser only, and it does not appear in searches
-   or in the library view. Add it to `songs.json` to make it part of the library.
-8. **Renaming a song in songs.json changes its id.** A share link made before the rename
+   or in the library view. Add it to `songs.tsv` to make it part of the library.
+8. **Renaming a song in songs.tsv changes its id.** A share link made before the rename
    will show that row as *Song not found*, with a button to remove it. Set an explicit
    `"id"` on a song if you expect to rename it.
 9. **Enharmonic spelling is normalised.** Write `Gb` and the page shows `F# maj`. Same
@@ -265,7 +294,7 @@ kind.
 
 ### What the licence does not cover
 
-- **The songs.** `songs.json` lists real songs by real artists. Titles, artists, keys and
+- **The songs.** `songs.tsv` lists real songs by real artists. Titles, artists, keys and
   BPM values are plain facts and not covered by this licence, and neither are the songs
   themselves. Every song stays the property of whoever holds its rights. Nothing here gives
   you any right to the music, the lyrics or the recordings.

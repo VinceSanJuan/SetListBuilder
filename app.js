@@ -10,11 +10,12 @@
  * This program is distributed WITHOUT ANY WARRANTY, without even the implied
  * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  */
-/* Set List Builder. Reads songs.json, keeps the set list in the browser only. */
+/* Set List Builder. Reads songs.tsv, keeps the set list in the browser only. */
 
 import {
   prepareSongs, parseCamelot, camelotStr, shift, compatible,
   bestShift, keyForCamelot, camelotForKey, resolveKey, keyToPicker, TONICS,
+  songsFromTsv,
 } from './music.js';
 
 /* ---------- small helpers ---------- */
@@ -126,9 +127,9 @@ let songById = new Map();
 const getSong = (id) => songById.get(id) ?? null;
 
 /**
- * The song an entry stands for. Most come from songs.json, but a set list may
+ * The song an entry stands for. Most come from songs.tsv, but a set list may
  * also hold a one off typed by hand, which lives in the entry itself because
- * songs.json cannot be written from the browser.
+ * songs.tsv cannot be written from the browser.
  */
 function songFor(entry) {
   if (!entry.custom) return getSong(entry.songId);
@@ -467,7 +468,7 @@ function renderSong(g, e, i) {
 <li class="song missing" data-uid="${e.uid}">
   <div class="song-main">
     <div class="l1"><span class="song-title">Song not found</span></div>
-    <div class="artist">${esc(e.songId)} is no longer in songs.json.</div>
+    <div class="artist">${esc(e.songId)} is no longer in songs.tsv.</div>
     <div class="song-meta">
       <span class="grow"></span>
       <button type="button" class="icon-btn danger" data-act="del-song"
@@ -572,7 +573,7 @@ function renderEditor(g, e, song, eff) {
 
 /**
  * Only a song typed by hand gets its key edited here. A library song takes its key
- * from songs.json, which stays the source of truth, so that one is transposed instead.
+ * from songs.tsv, which stays the source of truth, so that one is transposed instead.
  */
 function renderKeyRow(e, song) {
   const picked = keyToPicker(song.key) ?? { tonic: '', mode: 'major' };
@@ -771,7 +772,7 @@ function renderNewSong(g) {
   return `
 <div class="newsong" data-gid="${g.id}" role="region" aria-label="Add a song not in the library">
   <h3 class="ns-head">Song not in the library</h3>
-  <p class="ns-note">It joins this set list only. Put it in songs.json to keep it for good.</p>
+  <p class="ns-note">It joins this set list only. Put it in songs.tsv to keep it for good.</p>
   <div class="ed-row">
     <label class="ed-label" for="ns-title">Title</label>
     <input type="text" class="ns-in" id="ns-title" data-act="ns-title" value="${esc(ns.title)}"
@@ -1638,14 +1639,14 @@ function onHashChange() {
 
 function showDataErrors(errors) {
   errorsEl.hidden = false;
-  errorsEl.innerHTML = `<b>${errors.length} problem${errors.length === 1 ? '' : 's'} in songs.json.</b>
+  errorsEl.innerHTML = `<b>${errors.length} problem${errors.length === 1 ? '' : 's'} in songs.tsv.</b>
     Those songs were left out.<ul>${errors.map((e) => `<li>${esc(e)}</li>`).join('')}</ul>`;
 }
 
 function showFatal(err) {
   errorsEl.hidden = false;
   errorsEl.classList.add('fatal');
-  errorsEl.innerHTML = `<b>Could not load songs.json.</b>
+  errorsEl.innerHTML = `<b>Could not load songs.tsv.</b>
     <p>${esc(err.message)}</p>
     <p>If the address bar starts with <code>file://</code>, the browser blocks the read.
     Serve the folder over http instead, for example <code>py -m http.server 8080</code>,
@@ -1666,9 +1667,9 @@ async function init() {
   }
 
   try {
-    const res = await fetch('songs.json', { cache: 'no-cache' });
-    if (!res.ok) throw new Error(`songs.json returned HTTP ${res.status}`);
-    const prepared = prepareSongs(await res.json());
+    const res = await fetch('songs.tsv', { cache: 'no-cache' });
+    if (!res.ok) throw new Error(`songs.tsv returned HTTP ${res.status}`);
+    const prepared = prepareSongs(songsFromTsv(await res.text()));
     songs = prepared.songs.sort(
       (a, b) => a.title.localeCompare(b.title) || (a.artist || '').localeCompare(b.artist || ''),
     );

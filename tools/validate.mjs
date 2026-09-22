@@ -10,25 +10,25 @@
  * This program is distributed WITHOUT ANY WARRANTY, without even the implied
  * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  */
-/* Validate songs.json. Run by the GitHub Action before the site is deployed,
+/* Validate songs.tsv. Run by the GitHub Action before the site is deployed,
    so a bad key or Camelot value never reaches the live page.
 
-   Usage:  node tools/validate.mjs [songs.json] */
+   Usage:  node tools/validate.mjs [songs.tsv] */
 
 import { readFileSync } from 'node:fs';
-import { prepareSongs } from '../music.js';
+import { prepareSongs, songsFromTsv } from '../music.js';
 
-const path = process.argv[2] ?? 'songs.json';
+const path = process.argv[2] ?? 'songs.tsv';
 
-let raw;
+let rows;
 try {
-  raw = JSON.parse(readFileSync(path, 'utf8'));
+  rows = songsFromTsv(readFileSync(path, 'utf8'));
 } catch (err) {
-  console.error(`${path}: cannot read as JSON -> ${err.message}`);
+  console.error(`${path}: cannot read -> ${err.message}`);
   process.exit(1);
 }
 
-const { songs, errors } = prepareSongs(raw);
+const { songs, errors } = prepareSongs(rows);
 
 for (const song of songs) {
   const bpm = song.bpm ?? '--';
