@@ -41,6 +41,11 @@ for (const [n, minor, major] of WHEEL) {
   KEY_CAMELOT[PITCH[major] + ':maj'] = n + 'B';
 }
 
+/** One spelling per pitch class, for a key picker. Every one maps to a Camelot cell,
+    in both major and minor. Enharmonics are normalised on the way in, so picking
+    Ab minor stores the canonical G# min. */
+export const TONICS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+
 /* ---------- keys ---------- */
 
 const KEY_RE = /^([A-G])([#b]?)\s*(.*)$/;
@@ -62,6 +67,20 @@ export function parseKey(text) {
   else if (rest === 'm' || rest === 'min' || rest === 'minor') mode = 'min';
   else return null;
   return { pc, mode };
+}
+
+/**
+ * Turn a stored key back into a picker choice. Matching is by pitch class, not by
+ * spelling, because the canonical form may differ from the spelling in TONICS:
+ * picking Ab minor stores G# min, and both must come back as the same option.
+ */
+export function keyToPicker(text) {
+  const parsed = parseKey(text);
+  if (!parsed) return null;
+  return {
+    tonic: TONICS.find((t) => parseKey(t).pc === parsed.pc) ?? '',
+    mode: parsed.mode === 'min' ? 'minor' : 'major',
+  };
 }
 
 export function camelotForKey(text) {
@@ -172,6 +191,7 @@ function normalizeUrls(raw, where, errors) {
  * Validate and normalize the raw songs.json array.
  * Returns { songs, errors }. Bad songs are dropped, not silently fixed.
  * Ids are stable slugs of title + artist, so reordering songs.json is safe.
+ * Only the title is required. An unknown artist may be left out.
  */
 export function prepareSongs(raw) {
   const songs = [];
@@ -190,11 +210,6 @@ export function prepareSongs(raw) {
       errors.push(`song ${i + 1}: title is required`);
       return;
     }
-    if (!artist) {
-      errors.push(`${where}: artist is required`);
-      return;
-    }
-
     const resolved = resolveKey(s.key, s.camelot);
     if (resolved.error) {
       errors.push(`${where}: ${resolved.error}`);
@@ -211,7 +226,9 @@ export function prepareSongs(raw) {
       bpm = Math.round(n);
     }
 
-    let id = typeof s.id === 'string' && s.id.trim() ? s.id.trim() : slugify(`${title} ${artist}`);
+    let id = typeof s.id === 'string' && s.id.trim()
+      ? s.id.trim()
+      : slugify(artist ? `${title} ${artist}` : title);
     const count = (seen.get(id) || 0) + 1;
     seen.set(id, count);
     if (count > 1) id = `${id}-${count}`;

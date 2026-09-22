@@ -51,7 +51,7 @@ A JSON array. Copy this template for a new song:
 | Field | Required | Notes |
 | --- | --- | --- |
 | `title` | yes | Duplicates are allowed. `Build My Life` appears twice in the sample data. |
-| `artist` | yes | Tells duplicate titles apart. |
+| `artist` | no | Tells duplicate titles apart. Leave it out when it is unknown. |
 | `key` | no | See the key formats below. |
 | `bpm` | no | A number from 20 to 400, or leave it out. |
 | `camelot` | no | Leave blank and it is worked out from the key. |
@@ -69,7 +69,8 @@ key is worse than a failed build. Give neither and the song still works, but it 
 part in Camelot matching.
 
 **Ids.** Each song gets a stable id from its title and artist, such as
-`build-my-life-passion`. A second song with the same title and artist gets `-2` on the end.
+`build-my-life-passion`, or from the title alone when there is no artist. A second song with
+the same id gets `-2` on the end.
 Because the id does not depend on row order, you can sort or rearrange `songs.json` freely
 without breaking a saved set list or a share link.
 
@@ -122,6 +123,27 @@ the same key, one step around the wheel, or the relative major or minor.
 Raise the number and the search also offers songs that would fit *if* you changed their key.
 Those results carry a chip such as `-1 -> 10B`. Add one and the change is applied for you.
 
+**A song that is not in the library.** At the foot of the search panel there is
+*Not in the list? Add it here*. It asks for a title, an artist, a key picked from
+twelve notes plus major or minor, and an optional BPM, then *Cancel* or *Add song*. Whatever
+you had typed in the search box becomes the title, so nothing is retyped.
+
+From the moment it is added the song behaves like any other: it takes part in Camelot
+matching, it can be transposed, dragged, copied and shared. A dashed **not in library** mark on
+the row tells you where it came from.
+
+**Its key can be changed later.** Open such a song in the editor and it gets a **Key** row of
+its own, the same two pickers as the form, so a key left out at the start can be filled in and
+a wrong one corrected. Changing the key resets the transpose, because a transpose counted from
+the old key means nothing against the new one. A library song has no Key row: `songs.json`
+stays the source of truth for those, so they are transposed instead.
+
+Two things to keep in mind. A hand typed song lives **in the set list, not in the library**,
+because a web page cannot write to `songs.json`. So it does not show up in searches or in the
+library view, and it is carried only by this browser and by share links. To keep it for good,
+add it to `songs.json` in the normal way. Only a title is required, the same rule `songs.json`
+follows, so *Add song* turns on as soon as you have typed one.
+
 **Look without touching.** The magnifying glass in the top row opens the whole library as a
 plain list: title, artist, key, BPM, Camelot and tags, plus a links button where a song has
 links. It has no add button, no Camelot match and no transpose, so nothing you do there can
@@ -130,7 +152,7 @@ change your set list. Press Escape or the same button again to close it.
 **Editing a song in the set.** Double tap its title, or use its pencil. You get a transpose
 stepper, a BPM box, and *Reset* and *Replace song*, both outlined buttons, quieter than the
 filled *Done*. The original key and BPM stay on screen next to the new ones, after a hyphen,
-so `- orig A maj 11B`. *Reset* clears both overrides.
+so `- orig A maj, 11B`. *Reset* clears both overrides.
 
 The transpose stepper moves in semitones and works out the key and the Camelot value
 together, so the two can never disagree.
@@ -148,7 +170,8 @@ treated as a deliberate change of mood, so no warning is raised across them.
     Praise - Elevation Worship - A maj
     Washed - Elevation Rhythm - B maj
 
-Empty groups are left out. Changed keys are used, not the original ones.
+Empty groups are left out. Changed keys are used, not the original ones. A song with no
+artist prints as `Title - Key`, with no empty gap in the middle.
 
 **Share link** copies a link that carries the whole set list in the address. Nothing is
 stored on a server. Open it in a new tab, paste it into the address bar of the tab you are
@@ -197,27 +220,30 @@ from the last group back to the first.
 
 ## Known limits
 
-0. **Two web fonts load from Google Fonts** (Bricolage Grotesque and Instrument Sans). If
+1. **Two web fonts load from Google Fonts** (Bricolage Grotesque and Instrument Sans). If
    that is blocked or you are offline, the page falls back to your system font and still
    works. To remove the dependency, delete the three `fonts.` lines from `index.html`.
 
-1. **A local server is needed.** Opening `index.html` straight from disk shows a red banner
+2. **A local server is needed.** Opening `index.html` straight from disk shows a red banner
    explaining this. It is a browser rule, not a bug in the page.
-2. **Drag is not covered by the automated tests.** They cover the keyboard reorder, which
+3. **Drag is not covered by the automated tests.** They cover the keyboard reorder, which
    changes the set list in exactly the same way, and the sideways swipe. Dragging itself
    needs positions from a real layout, so please try it in a browser on a phone and on a
    desktop.
-3. **Tags show the first three, then a count.** A row lists three tags and adds a `+2` chip
+4. **Tags show the first three, then a count.** A row lists three tags and adds a `+2` chip
    for the rest. The strip is also clipped with a fading right edge (the `.tags` rule in
    `styles.css`) in case a single tag is very long. Note that the sample `songs.json` has no
    tags yet, so nothing appears until you add some.
-4. **Share links grow with the set.** A thirty song set makes a link a few hundred
+5. **Share links grow with the set.** A thirty song set makes a link a few hundred
    characters long. It works, but it is not tidy.
-5. **Undo history is not saved.** The set list survives a reload; the undo steps do not.
-6. **Renaming a song in songs.json changes its id.** A share link made before the rename
+6. **Undo history is not saved.** The set list survives a reload; the undo steps do not.
+7. **A hand typed song never reaches `songs.json`.** It is held in the set list itself, so
+   it travels in share links and in this browser only, and it does not appear in searches
+   or in the library view. Add it to `songs.json` to make it part of the library.
+8. **Renaming a song in songs.json changes its id.** A share link made before the rename
    will show that row as *Song not found*, with a button to remove it. Set an explicit
    `"id"` on a song if you expect to rename it.
-7. **Enharmonic spelling is normalised.** Write `Gb` and the page shows `F# maj`. Same
+9. **Enharmonic spelling is normalised.** Write `Gb` and the page shows `F# maj`. Same
    sound, one spelling.
 
 ## Licence

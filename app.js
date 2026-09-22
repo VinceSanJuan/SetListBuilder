@@ -14,7 +14,7 @@
 
 import {
   prepareSongs, parseCamelot, camelotStr, shift, compatible,
-  bestShift, keyForCamelot,
+  bestShift, keyForCamelot, camelotForKey, resolveKey, keyToPicker, TONICS,
 } from './music.js';
 
 /* ---------- small helpers ---------- */
@@ -126,6 +126,16 @@ let songById = new Map();
 const getSong = (id) => songById.get(id) ?? null;
 
 /**
+ * The song an entry stands for. Most come from songs.json, but a set list may
+ * also hold a one off typed by hand, which lives in the entry itself because
+ * songs.json cannot be written from the browser.
+ */
+function songFor(entry) {
+  if (!entry.custom) return getSong(entry.songId);
+  return { ...entry.custom, tags: entry.custom.tags ?? [], urls: entry.custom.urls ?? [], byHand: true };
+}
+
+/**
  * Tags that explain why a song matched, for words the title and artist do not
  * contain. Searching "praise" finds 10,000 Reasons through its tag, and without
  * this the row gives no hint why it is in the list.
@@ -167,6 +177,7 @@ const ui = {
   adding: false,     // the new group form is open
   collapsed: new Set(),
   expanded: new Set(),
+  newSong: null,     // { gid, title, artist, tonic, mode, bpm } while typing a one off
   browse: false,     // the read only library panel is open
   browseQ: '',
   expandedLib: new Set(),
@@ -202,7 +213,12 @@ function packState(st) {
   return st.groups.map((g) => [
     g.name,
     g.color ?? '',
-    g.entries.map((e) => [e.songId, e.transpose || 0, e.bpm ?? 0]),
+    // A hand typed song has no library id, so an empty id marks one and its
+    // own details follow. Older readers see three fields and ignore the rest.
+    g.entries.map((e) => (e.custom
+      ? ['', e.transpose || 0, e.bpm ?? 0,
+         e.custom.title, e.custom.artist, e.custom.key ?? '', e.custom.bpm ?? 0]
+      : [e.songId, e.transpose || 0, e.bpm ?? 0])),
   ]);
 }
 
@@ -216,12 +232,29 @@ function unpackState(packed) {
         id: uid(),
         name: String(name),
         color: color || PALETTE[i % PALETTE.length],
-        entries: (entries || []).map(([songId, transpose, bpm]) => ({
-          uid: uid(),
-          songId: String(songId),
-          transpose: Number(transpose) || 0,
-          bpm: bpm ? Number(bpm) : null,
-        })),
+        entries: (entries || []).map(([songId, transpose, bpm, title, artist, key, ownBpm]) => {
+          const base = {
+            uid: uid(),
+            transpose: Number(transpose) || 0,
+            bpm: bpm ? Number(bpm) : null,
+          };
+          if (!songId && title) {
+            const resolved = resolveKey(String(key ?? ''), '');
+            return {
+              ...base,
+              custom: {
+                title: String(title),
+                artist: String(artist ?? ''),
+                key: resolved.key ?? '',
+                camelot: resolved.camelot ?? '',
+                bpm: ownBpm ? Number(ownBpm) : null,
+                tags: [],
+                urls: [],
+              },
+            };
+          }
+          return { ...base, songId: String(songId) };
+        }),
       };
     }),
   };
@@ -304,8 +337,8 @@ function findEntry(entryUid) {
 function clashAt(group, i) {
   if (i === 0) return null;
   const prev = group.entries[i - 1];
-  const before = effective(prev, getSong(prev.songId));
-  const here = effective(group.entries[i], getSong(group.entries[i].songId));
+  const before = effective(prev, songFor(prev));
+  const here = effective(group.entries[i], songFor(group.entries[i]));
   if (!before.cam || !here.cam || compatible(here.cam, before.cam)) return null;
   return { from: before.camText, to: here.camText };
 }
@@ -316,7 +349,7 @@ function anchorFor(group, replaceUid) {
     ? group.entries.findIndex((e) => e.uid === replaceUid) - 1
     : group.entries.length - 1;
   const entry = i >= 0 ? group.entries[i] : null;
-  const song = entry ? getSong(entry.songId) : null;
+  const song = entry ? songFor(entry) : null;
   return song ? { entry, song, eff: effective(entry, song) } : null;
 }
 
@@ -374,7 +407,7 @@ function renderSummary() {
   const badges = [];
   for (const g of state.groups) {
     g.entries.forEach((e, i) => {
-      const eff = effective(e, getSong(e.songId));
+      const eff = effective(e, songFor(e));
       badges.push(camBadge(eff.camText, clashAt(g, i) ? 'clashed' : ''));
     });
   }
@@ -416,16 +449,18 @@ function renderGroup(g, gi) {
   <div class="gbody">
     <ul class="songs">${g.entries.map((e, i) => renderSong(g, e, i)).join('')}</ul>
     ${n === 0 && !searchOpen ? `<p class="empty-row">No songs yet. Add the first one below.</p>` : ''}
-    ${searchOpen
-      ? renderSearch(g, {})
-      : `<button type="button" class="plus" data-act="open-search" aria-label="Add song to ${label}">
-           <span class="ico">${ic.plus}</span>Add song</button>`}
+    ${ui.newSong?.gid === g.id
+      ? renderNewSong(g)
+      : searchOpen
+        ? renderSearch(g, {})
+        : `<button type="button" class="plus" data-act="open-search" aria-label="Add song to ${label}">
+             <span class="ico">${ic.plus}</span>Add song</button>`}
   </div>
 </section>`;
 }
 
 function renderSong(g, e, i) {
-  const song = getSong(e.songId);
+  const song = songFor(e);
 
   if (!song) {
     return `
@@ -462,13 +497,14 @@ function renderSong(g, e, i) {
             aria-label="${title}. Activate to edit key, BPM or replace the song.">${title}</span>
       ${camBadge(eff.camText, moved ? 'changed' : '')}
     </div>
-    <div class="artist">${esc(song.artist)}</div>
+    ${song.artist ? `<div class="artist">${esc(song.artist)}</div>` : ''}
     <div class="song-meta">
       <span class="chip${moved ? ' changed' : ''}">${esc(eff.key || '--')}</span>
       <span class="chip${bpmChanged ? ' changed' : ''}">${eff.bpm ?? '--'} BPM</span>
       ${moved || bpmChanged
         ? `<span class="chip orig">- orig ${esc(song.key || '--')}${song.camelot ? `, ${esc(song.camelot)}` : ''}${song.bpm != null ? `, ${song.bpm} BPM` : ''}</span>`
         : ''}
+      ${song.byHand ? '<span class="chip byhand">not in library</span>' : ''}
       <span class="grow"></span>
       ${song.urls.length
         ? `<button type="button" class="linkbtn" data-act="links" aria-expanded="${linksOpen}"
@@ -517,6 +553,7 @@ function renderEditor(g, e, song, eff) {
     ${semi ? `<span class="chip orig">- orig ${esc(song.key || '--')}, ${esc(song.camelot || '--')}</span>` : ''}
     ${canMove ? '' : '<span class="chip orig">- no key on this song</span>'}
   </div>
+  ${song.byHand ? renderKeyRow(e, song) : ''}
   <div class="ed-row">
     <label class="ed-label" for="ed-bpm-${e.uid}">BPM</label>
     <input type="number" class="ed-bpm" id="ed-bpm-${e.uid}" data-act="set-bpm"
@@ -531,6 +568,42 @@ function renderEditor(g, e, song, eff) {
   </div>
   ${ui.swap === e.uid ? renderSearch(g, { replaceUid: e.uid }) : ''}
 </div>`;
+}
+
+/**
+ * Only a song typed by hand gets its key edited here. A library song takes its key
+ * from songs.json, which stays the source of truth, so that one is transposed instead.
+ */
+function renderKeyRow(e, song) {
+  const picked = keyToPicker(song.key) ?? { tonic: '', mode: 'major' };
+  return `
+  <div class="ed-row">
+    <label class="ed-label" for="ek-tonic-${e.uid}">Key</label>
+    <select class="ns-sel" id="ek-tonic-${e.uid}" data-act="ek-tonic">
+      <option value=""${picked.tonic ? '' : ' selected'}>none</option>
+      ${TONICS.map((t) => `<option value="${t}"${t === picked.tonic ? ' selected' : ''}>${t}</option>`).join('')}
+    </select>
+    <select class="ns-sel" id="ek-mode-${e.uid}" data-act="ek-mode" aria-label="Major or minor"
+            ${picked.tonic ? '' : 'disabled'}>
+      <option value="major"${picked.mode === 'major' ? ' selected' : ''}>major</option>
+      <option value="minor"${picked.mode === 'minor' ? ' selected' : ''}>minor</option>
+    </select>
+    ${song.key
+      ? `<span class="chip">${esc(song.key)}</span>${camBadge(song.camelot)}`
+      : '<span class="chip orig">- set a key to join Camelot matching</span>'}
+  </div>`;
+}
+
+function setSongKey(entryUid, tonic, mode) {
+  const found = findEntry(entryUid);
+  if (!found?.entry.custom) return;
+  const resolved = resolveKey(tonic ? `${tonic} ${mode}` : '', '');
+  found.entry.custom.key = resolved.key ?? '';
+  found.entry.custom.camelot = resolved.camelot ?? '';
+  // a transpose counted from the old key means nothing against the new one
+  found.entry.transpose = 0;
+  say(resolved.key ? `Key set to ${resolved.key}.` : 'Key cleared.');
+  commit();
 }
 
 function renderSearch(g, { replaceUid = null }) {
@@ -573,6 +646,10 @@ function renderSearch(g, { replaceUid = null }) {
     : ''}
   <p class="rcount"></p>
   <ul class="results"></ul>
+  ${replaceUid
+    ? ''
+    : `<button type="button" class="btn outline ns-open" data-act="ns-open">
+         Not in the list? Add it here</button>`}
 </div>`;
 }
 
@@ -637,7 +714,7 @@ function resultsHtml(anchor) {
   <button type="button" class="result-btn" data-act="pick" data-song="${esc(song.id)}" data-semi="${semi}">
     <span class="rtext">
       <span class="r-title">${esc(song.title)}</span>
-      <span class="r-artist">${esc(song.artist)}</span>
+      ${song.artist ? `<span class="r-artist">${esc(song.artist)}</span>` : ''}
       <span class="r-meta">${chips.join('')}</span>
     </span>
     ${camBadge(moved ? fit.cam : song.camelot, moved ? 'changed' : '')}
@@ -683,6 +760,104 @@ function renderAddGroup() {
 </div>`;
 }
 
+/* ---------- a song typed by hand ---------- */
+
+const newSongKey = (ns) => (ns.tonic ? `${ns.tonic} ${ns.mode}` : '');
+
+function renderNewSong(g) {
+  const ns = ui.newSong;
+  const ready = ns.title.trim() !== '';
+
+  return `
+<div class="newsong" data-gid="${g.id}" role="region" aria-label="Add a song not in the library">
+  <h3 class="ns-head">Song not in the library</h3>
+  <p class="ns-note">It joins this set list only. Put it in songs.json to keep it for good.</p>
+  <div class="ed-row">
+    <label class="ed-label" for="ns-title">Title</label>
+    <input type="text" class="ns-in" id="ns-title" data-act="ns-title" value="${esc(ns.title)}"
+           maxlength="120" autocomplete="off" placeholder="Song title">
+  </div>
+  <div class="ed-row">
+    <label class="ed-label" for="ns-artist">Artist</label>
+    <input type="text" class="ns-in" id="ns-artist" data-act="ns-artist" value="${esc(ns.artist)}"
+           maxlength="120" autocomplete="off" placeholder="optional">
+  </div>
+  <div class="ed-row">
+    <label class="ed-label" for="ns-tonic">Key</label>
+    <select class="ns-sel" id="ns-tonic" data-act="ns-tonic">
+      <option value=""${ns.tonic ? '' : ' selected'}>none</option>
+      ${TONICS.map((t) => `<option value="${t}"${t === ns.tonic ? ' selected' : ''}>${t}</option>`).join('')}
+    </select>
+    <select class="ns-sel" id="ns-mode" data-act="ns-mode" aria-label="Major or minor"
+            ${ns.tonic ? '' : 'disabled'}>
+      <option value="major"${ns.mode === 'major' ? ' selected' : ''}>major</option>
+      <option value="minor"${ns.mode === 'minor' ? ' selected' : ''}>minor</option>
+    </select>
+    <span class="ns-derived">${newSongDerived(ns)}</span>
+  </div>
+  <div class="ed-row">
+    <label class="ed-label" for="ns-bpm">BPM</label>
+    <input type="number" class="ed-bpm" id="ns-bpm" data-act="ns-bpm" min="20" max="400" step="1"
+           value="${esc(ns.bpm)}" placeholder="optional">
+  </div>
+  <div class="ed-row ed-buttons">
+    <button type="button" class="btn outline" data-act="ns-cancel">Cancel</button>
+    <span class="grow"></span>
+    <button type="button" class="btn" data-act="ns-add" ${ready ? '' : 'disabled'}>Add song</button>
+  </div>
+</div>`;
+}
+
+function newSongDerived(ns) {
+  const cam = newSongKey(ns) ? camelotForKey(newSongKey(ns)) : null;
+  if (!cam) return '<span class="chip orig">- no key, so no Camelot matching</span>';
+  return `<span class="chip">${esc(keyForCamelot(cam))}</span>${camBadge(cam)}`;
+}
+
+/** Update only the parts that follow from a change, so typing is never disturbed. */
+function refreshNewSong() {
+  const panel = groupsEl.querySelector('.newsong');
+  if (!panel || !ui.newSong) return;
+  $('.ns-derived', panel).innerHTML = newSongDerived(ui.newSong);
+  $('#ns-mode', panel).disabled = !ui.newSong.tonic;
+  $('[data-act="ns-add"]', panel).disabled = ui.newSong.title.trim() === '';
+}
+
+function addSongByHand() {
+  const ns = ui.newSong;
+  const g = findGroup(ns.gid);
+  const title = ns.title.trim();
+  const artist = ns.artist.trim();
+  if (!g || !title) return;
+
+  const resolved = resolveKey(newSongKey(ns), '');
+  const asNumber = Number(ns.bpm);
+  const bpm = ns.bpm === '' || !Number.isFinite(asNumber)
+    ? null
+    : Math.max(20, Math.min(400, Math.round(asNumber)));
+
+  const entry = {
+    uid: uid(),
+    transpose: 0,
+    bpm: null,
+    custom: {
+      title,
+      artist,
+      key: resolved.key ?? '',
+      camelot: resolved.camelot ?? '',
+      bpm,
+      tags: [],
+      urls: [],
+    },
+  };
+  g.entries.push(entry);
+  ui.newSong = null;
+  ui.fresh = entry.uid;
+  ui.searchState.q = '';
+  say(`Added ${title}. It is in this set list only, not in the library.`);
+  commit();
+}
+
 /* ---------- library search, read only ---------- */
 
 /** One library row. Nothing here adds to a set list or changes a key. */
@@ -698,7 +873,7 @@ function libRow(song) {
   <div class="brow">
     <span class="rtext">
       <span class="r-title">${esc(song.title)}</span>
-      <span class="r-artist">${esc(song.artist)}</span>
+      ${song.artist ? `<span class="r-artist">${esc(song.artist)}</span>` : ''}
       <span class="r-meta">
         <span class="chip">${esc(song.key || '--')}</span>
         <span class="chip">${song.bpm ?? '--'} BPM</span>
@@ -758,6 +933,7 @@ function openSearch(gid) {
   ui.search = { gid };
   ui.swap = null;
   ui.editor = null;
+  ui.newSong = null;
   ui.collapsed.delete(gid);
   ui.searchState = { q: '', compat: false, semi: 0 };
   ui.focusSel = '.search-panel .s-q';
@@ -768,6 +944,7 @@ function openSearch(gid) {
 function closeSearch() {
   ui.search = null;
   ui.swap = null;
+  ui.newSong = null;
   render();
 }
 
@@ -783,6 +960,7 @@ function pickSong(btn) {
   if (replaceUid) {
     const found = findEntry(replaceUid);
     if (!found) return;
+    delete found.entry.custom; // it becomes a library song now
     Object.assign(found.entry, { songId, transpose: semi, bpm: null });
     ui.swap = null;
     ui.fresh = replaceUid;
@@ -810,7 +988,7 @@ function setTranspose(entryUid, delta) {
 function setBpm(entryUid, raw) {
   const found = findEntry(entryUid);
   if (!found) return;
-  const song = getSong(found.entry.songId);
+  const song = songFor(found.entry);
   const n = Number(raw);
   const value = raw === '' || !Number.isFinite(n) ? null : Math.max(20, Math.min(400, Math.round(n)));
   found.entry.bpm = value === song?.bpm ? null : value;
@@ -919,8 +1097,8 @@ async function deleteGroup(gid) {
 async function deleteSong(entryUid) {
   const found = findEntry(entryUid);
   if (!found) return;
-  const song = getSong(found.entry.songId);
-  const name = song ? `${song.title} - ${song.artist}` : 'this song';
+  const song = songFor(found.entry);
+  const name = song ? [song.title, song.artist].filter(Boolean).join(' - ') : 'this song';
   const ok = await ask(`Remove ${name} from ${found.group.name}? Undo can bring it back.`);
   if (!ok) return;
   found.group.entries = found.group.entries.filter((e) => e.uid !== entryUid);
@@ -951,9 +1129,11 @@ function setListText() {
   for (const g of state.groups) {
     if (!g.entries.length) continue;
     const lines = g.entries.map((e) => {
-      const song = getSong(e.songId);
+      const song = songFor(e);
       if (!song) return `Song not found: ${e.songId}`;
-      return `${song.title} - ${song.artist} - ${effective(e, song).key || '--'}`;
+      // an unknown artist is left out, rather than leaving an empty middle part
+      return [song.title, song.artist, effective(e, song).key || '--']
+        .filter(Boolean).join(' - ');
     });
     blocks.push(`${g.name}\n${lines.join('\n')}`);
   }
@@ -1191,6 +1371,28 @@ function wire() {
 
       case 'b-close': ui.browse = false; render(); break;
 
+      case 'ns-open':
+        ui.newSong = {
+          gid: el.closest('.search-panel').dataset.gid,
+          title: ui.searchState.q.trim(),
+          artist: '',
+          tonic: '',
+          mode: 'major',
+          bpm: '',
+        };
+        ui.focusSel = '#ns-title';
+        render();
+        break;
+
+      case 'ns-cancel':
+        ui.newSong = null;
+        ui.focusSel = '.search-panel .s-q';
+        render();
+        break;
+
+      case 'ns-add': addSongByHand(); break;
+
+
       case 'lib-links': {
         const id = el.dataset.song;
         if (ui.expandedLib.has(id)) ui.expandedLib.delete(id);
@@ -1277,6 +1479,9 @@ function wire() {
     if (act === 'b-q') {
       ui.browseQ = event.target.value;
       refreshBrowse();
+    } else if (act === 'ns-title' || act === 'ns-artist' || act === 'ns-bpm') {
+      ui.newSong[act.slice(3)] = event.target.value;
+      refreshNewSong();
     } else if (act === 's-q') {
       ui.searchState.q = event.target.value;
       refreshResults();
@@ -1287,8 +1492,19 @@ function wire() {
   });
 
   appEl.addEventListener('change', (event) => {
-    if (event.target.dataset.act === 'set-bpm') {
+    const act = event.target.dataset.act;
+    if (act === 'set-bpm') {
       setBpm(event.target.closest('[data-uid]').dataset.uid, event.target.value);
+    } else if (act === 'ns-tonic' || act === 'ns-mode') {
+      ui.newSong[act.slice(3)] = event.target.value;
+      refreshNewSong();
+    } else if (act === 'ek-tonic' || act === 'ek-mode') {
+      const editor = event.target.closest('.editor');
+      setSongKey(
+        editor.dataset.uid,
+        $('[data-act="ek-tonic"]', editor).value,
+        $('[data-act="ek-mode"]', editor).value,
+      );
     }
   });
 
@@ -1318,6 +1534,11 @@ function wire() {
 
     if (event.key === 'Escape' && ui.browse && el.dataset.act === 'b-q') {
       ui.browse = false;
+      render();
+      return;
+    }
+    if (event.key === 'Escape' && ui.newSong) {
+      ui.newSong = null;
       render();
       return;
     }
@@ -1449,7 +1670,7 @@ async function init() {
     if (!res.ok) throw new Error(`songs.json returned HTTP ${res.status}`);
     const prepared = prepareSongs(await res.json());
     songs = prepared.songs.sort(
-      (a, b) => a.title.localeCompare(b.title) || a.artist.localeCompare(b.artist),
+      (a, b) => a.title.localeCompare(b.title) || (a.artist || '').localeCompare(b.artist || ''),
     );
     songById = new Map(songs.map((s) => [s.id, s]));
     if (prepared.errors.length) showDataErrors(prepared.errors);
