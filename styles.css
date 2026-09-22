@@ -313,7 +313,6 @@ h1 {
 
 .song-main {
   padding: 10px 4px;
-  border-top: 1px solid var(--line);
   transition: transform 0.12s ease-out, background 0.12s;
   touch-action: pan-y;
 }
@@ -379,6 +378,71 @@ h1 {
 .empty-row { padding: 12px 4px 4px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
 
 /* ---------- add song ---------- */
+
+/* ---------- a place to put a song, between rows ---------- */
+
+.slot { list-style: none; }
+.gap { list-style: none; }
+
+.gap-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 18px;
+  transition: height 0.12s;
+}
+/* The one separator between two rows. The row itself draws none, so there is a
+   single line here rather than a border and a hairline sitting side by side. */
+.gap-btn::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px solid var(--line);
+}
+.gap-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  opacity: 0.5;
+  transition: opacity 0.12s, color 0.12s, border-color 0.12s, background 0.12s;
+}
+.gap-label .txt { display: none; }
+.gap-label svg { width: 13px; height: 13px; }
+
+.gap-btn:hover,
+.gap-btn:focus-visible { height: 34px; }
+.gap-btn:hover::before,
+.gap-btn:focus-visible::before { border-top-color: var(--accent); }
+.gap-btn:hover .gap-label,
+.gap-btn:focus-visible .gap-label {
+  opacity: 1;
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.gap-btn:hover .txt,
+.gap-btn:focus-visible .txt { display: inline; }
+
+/* No hover to reveal them with, so they sit a little plainer instead. */
+@media (hover: none) {
+  .gap-btn { height: 24px; }
+  .gap-label { opacity: 0.75; }
+}
+
+/* they would only get in the way of a drag, so the rows take the line back */
+body.dragging-active .gap { display: none; }
+body.dragging-active .song-main { border-top: 1px solid var(--line); }
 
 .plus {
   display: flex; align-items: center; gap: 12px; width: 100%;

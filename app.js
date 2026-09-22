@@ -345,10 +345,10 @@ function clashAt(group, i) {
 }
 
 /** The song a new or replaced entry has to follow, or null at the top of a group. */
-function anchorFor(group, replaceUid) {
+function anchorFor(group, { replaceUid = null, at = null } = {}) {
   const i = replaceUid
     ? group.entries.findIndex((e) => e.uid === replaceUid) - 1
-    : group.entries.length - 1;
+    : (at ?? group.entries.length) - 1;
   const entry = i >= 0 ? group.entries[i] : null;
   const song = entry ? songFor(entry) : null;
   return song ? { entry, song, eff: effective(entry, song) } : null;
@@ -424,6 +424,19 @@ function renderGroup(g, gi) {
   const searchOpen = ui.search?.gid === g.id;
   const collapsed = ui.collapsed.has(g.id);
 
+  // a song may be deleted while a panel is open further down the group
+  const clamp = (v) => Math.max(0, Math.min(v ?? n, n));
+  if (ui.search?.gid === g.id) ui.search.at = clamp(ui.search.at);
+  if (ui.newSong?.gid === g.id) ui.newSong.at = clamp(ui.newSong.at);
+  const addingHere = ui.newSong?.gid === g.id;
+
+  const slots = [];
+  g.entries.forEach((e, i) => {
+    slots.push(renderSlot(g, i));
+    slots.push(renderSong(g, e, i));
+  });
+  slots.push(renderSlot(g, n, true));
+
   const name = ui.renaming === g.id
     ? `<input class="rename" type="text" value="${esc(g.name)}" data-act="rename-input"
               aria-label="Group name" autocomplete="off" maxlength="24">`
@@ -448,16 +461,43 @@ function renderGroup(g, gi) {
   </div>
   </div>
   <div class="gbody">
-    <ul class="songs">${g.entries.map((e, i) => renderSong(g, e, i)).join('')}</ul>
-    ${n === 0 && !searchOpen ? `<p class="empty-row">No songs yet. Add the first one below.</p>` : ''}
-    ${ui.newSong?.gid === g.id
-      ? renderNewSong(g)
-      : searchOpen
-        ? renderSearch(g, {})
-        : `<button type="button" class="plus" data-act="open-search" aria-label="Add song to ${label}">
-             <span class="ico">${ic.plus}</span>Add song</button>`}
+    <ul class="songs">${slots.join('')}</ul>
+    ${n === 0 && !searchOpen && !addingHere
+      ? `<p class="empty-row">No songs yet.</p>` : ''}
   </div>
 </section>`;
+}
+
+/**
+ * A place a song can go: between two rows, above the first, or at the end.
+ *
+ * The end keeps the loud button, because adding to the end is the common act.
+ * The in between ones stay quiet: a faint line with a plus, which grows and
+ * names itself on hover or keyboard focus. They are always drawn rather than
+ * appearing on hover, because a touch screen has no hover to reveal them with.
+ */
+function renderSlot(g, at, last = false) {
+  if (ui.newSong?.gid === g.id && ui.newSong.at === at) {
+    return `<li class="slot">${renderNewSong(g)}</li>`;
+  }
+  if (ui.search?.gid === g.id && ui.search.at === at) {
+    return `<li class="slot">${renderSearch(g, { at })}</li>`;
+  }
+  if (last) {
+    return `<li class="slot">
+      <button type="button" class="plus" data-act="open-search" data-at="${at}"
+              aria-label="Add a song to the end of ${esc(g.name)}">
+        <span class="ico">${ic.plus}</span>Add song</button>
+    </li>`;
+  }
+  const above = at === 0 ? null : songFor(g.entries[at - 1]);
+  const where = above ? `after ${esc(above.title)}` : `at the top of ${esc(g.name)}`;
+  return `<li class="gap">
+    <button type="button" class="gap-btn" data-act="open-search" data-at="${at}"
+            aria-label="Add a song ${where}">
+      <span class="gap-label">${ic.plus}<span class="txt">Add song here</span></span>
+    </button>
+  </li>`;
 }
 
 function renderSong(g, e, i) {
@@ -607,14 +647,15 @@ function setSongKey(entryUid, tonic, mode) {
   commit();
 }
 
-function renderSearch(g, { replaceUid = null }) {
-  const anchor = anchorFor(g, replaceUid);
+function renderSearch(g, { replaceUid = null, at = null }) {
+  const anchor = anchorFor(g, { replaceUid, at });
   const st = ui.searchState;
   const canCompat = !!anchor?.eff.cam;
   const compatOn = st.compat && canCompat;
 
   return `
-<div class="search-panel" data-gid="${g.id}"${replaceUid ? ` data-replace="${replaceUid}"` : ''}
+<div class="search-panel" data-gid="${g.id}"${replaceUid ? ` data-replace="${replaceUid}"` : ''}${
+  at === null ? '' : ` data-at="${at}"`}
      role="region" aria-label="${replaceUid ? 'Replace song' : `Add a song to ${esc(g.name)}`}">
   <div class="pbar">
     ${ic.search}
@@ -629,7 +670,10 @@ function renderSearch(g, { replaceUid = null }) {
          <span class="chip">${anchor.eff.bpm ?? '--'}</span>
          ${camBadge(anchor.eff.camText)}
        </p>`
-    : `<p class="anchor none">First song in ${esc(g.name)}, so there is no key to match.</p>`}
+    : `<p class="anchor none">${
+        at === 0 && g.entries.length
+          ? `Going to the top of ${esc(g.name)}, so there is no key to match.`
+          : `First song in ${esc(g.name)}, so there is no key to match.`}</p>`}
   <button type="button" class="match" data-act="s-compat"
           aria-pressed="${compatOn}" ${canCompat ? '' : 'disabled'}>
     ${ic.wheel}
@@ -732,7 +776,10 @@ function refreshResults() {
   if (!panel) return;
   const g = findGroup(panel.dataset.gid);
   if (!g) return;
-  const anchor = anchorFor(g, panel.dataset.replace ?? null);
+  const anchor = anchorFor(g, {
+    replaceUid: panel.dataset.replace ?? null,
+    at: panel.dataset.at === undefined ? null : Number(panel.dataset.at),
+  });
   const { found, compatOn } = searchResults(anchor);
   $('.rcount', panel).textContent =
     `${found.length} ${found.length === 1 ? 'song' : 'songs'}${compatOn ? ' that fit' : ' available'}`;
@@ -851,7 +898,7 @@ function addSongByHand() {
       urls: [],
     },
   };
-  g.entries.push(entry);
+  g.entries.splice(ns.at ?? g.entries.length, 0, entry);
   ui.newSong = null;
   ui.fresh = entry.uid;
   ui.searchState.q = '';
@@ -930,8 +977,8 @@ function refreshBrowse() {
 
 /* ---------- actions ---------- */
 
-function openSearch(gid) {
-  ui.search = { gid };
+function openSearch(gid, at) {
+  ui.search = { gid, at: at === undefined ? undefined : Number(at) };
   ui.swap = null;
   ui.editor = null;
   ui.newSong = null;
@@ -968,10 +1015,13 @@ function pickSong(btn) {
     say(`Replaced with ${getSong(songId)?.title ?? songId}.`);
   } else {
     const entry = { uid: uid(), songId, transpose: semi, bpm: null };
-    g.entries.push(entry);
+    const at = panel.dataset.at === undefined ? g.entries.length : Number(panel.dataset.at);
+    g.entries.splice(at, 0, entry);
     ui.fresh = entry.uid;
     ui.searchState.q = '';
     ui.focusSel = '.search-panel .s-q';
+    // the panel stays open just below the song it added, so a run of adds keeps its order
+    if (ui.search) ui.search.at = at + 1;
     say(`Added ${getSong(songId)?.title ?? songId} to ${g.name}.`);
   }
   commit();
@@ -1368,13 +1418,16 @@ function wire() {
     const entryUid = el.closest('[data-uid]')?.dataset.uid;
 
     switch (el.dataset.act) {
-      case 'open-search': openSearch(gid); break;
+      case 'open-search': openSearch(gid, el.dataset.at); break;
 
       case 'b-close': ui.browse = false; render(); break;
 
       case 'ns-open':
         ui.newSong = {
           gid: el.closest('.search-panel').dataset.gid,
+          at: el.closest('.search-panel').dataset.at === undefined
+            ? undefined
+            : Number(el.closest('.search-panel').dataset.at),
           title: ui.searchState.q.trim(),
           artist: '',
           tonic: '',

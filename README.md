@@ -139,11 +139,25 @@ light and dark. The first one opens a read only view of the whole library, descr
 playing order. Badges are tinted by their place on the wheel, so neighbouring keys look
 alike and a jump stands out. A badge ringed in amber is a clash.
 
-**Adding songs.** The Add song button inside a group opens a search panel, and hides itself
-while the panel is open. The song directly above is shown right under the search box, as
-**Plays after**, so you can see what the next song has to follow. The result list scrolls
+**Adding songs.** The Add song button at the foot of a group opens a search panel, and hides
+itself while the panel is open. The song directly above is shown right under the search box,
+as **Plays after**, so you can see what the next song has to follow. The result list scrolls
 inside its own box, so the other groups stay on screen. Type several words and all of them
 must match.
+
+**Adding one part way down.** Between every pair of songs, and above the first one, there is a
+thin line with a small plus. Point at it, or give it keyboard focus, and it grows into
+**+ Add song here**. Tap or click it and the search panel opens right there, with **Plays
+after** showing the song above that spot, so Camelot matching works from the right place. The
+line above the first song puts the new one at the top of the group.
+
+These lines are always drawn rather than appearing only when pointed at, because a touch
+screen has no pointer to reveal them with. They stay quiet so the loud button at the foot,
+which is the common action, keeps standing out. They step out of the way while a song is
+being dragged.
+
+Adding several in a row works the way you would expect: the panel stays open just below each
+song it adds, so a run of songs goes in the order you pick them, not in reverse.
 
 **Camelot match.** Once a group has a song, the *Camelot match* button becomes active, and
 names the four codes that fit. It keeps only the songs that sit well after the one above:
