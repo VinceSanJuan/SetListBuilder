@@ -111,7 +111,7 @@ convert. Keep the header row at the top.
    **GitHub Actions**. Do not pick a branch. There is nothing else to fill in.
 3. Open the **Actions** tab. If Actions are disabled, enable them.
 4. Push any change to `main`. The **Deploy to Pages** workflow runs, checks `songs.tsv`,
-   and publishes. It takes about half a minute.
+   runs the tests, and publishes. It takes about a minute.
 5. Your site is at `https://<your-username>.github.io/<repository-name>/`. The exact
    address also appears on the Settings > Pages screen and on the finished deploy.
 
@@ -120,10 +120,60 @@ Notes:
 - The workflow needs no extra secrets or tokens. It asks for `pages: write` and
   `id-token: write` itself, and only reads the repository.
 - Nothing is committed back to the repository, so the workflow cannot set itself off again.
-- If `songs.tsv` has a mistake, the check fails and **the old site stays up**. Read the
-  error in the Actions log.
+- If `songs.tsv` has a mistake, or a test fails, nothing is published and **the old site
+  stays up**. Read the error in the Actions log, or on the job summary page.
 - You can also start a deploy by hand: Actions > Deploy to Pages > Run workflow.
 - A private repository needs a paid GitHub plan for Pages. A public one is free.
+
+## Tests
+
+    npm ci      # once, to fetch jsdom
+    npm test
+
+Three suites, about 400 checks, roughly ten seconds:
+
+| Suite | File | What it covers |
+| --- | --- | --- |
+| data | `tests/tsv.mjs` | Reading `songs.tsv`, including what a spreadsheet does to it |
+| startup | `tests/startup.mjs` | Share links, unknown song ids, damaged data, a failed fetch |
+| app | `tests/app.mjs` | The page itself: searching, editing, dragging, sharing |
+
+The last two build a document with [jsdom](https://github.com/jsdom/jsdom) and run the
+real `app.js` and the real `styles.css` against it. Nothing is mocked out, so a check that
+passes describes the shipped code.
+
+`jsdom` is the only dependency in this project, and it is a development one. The published
+site still has no build step and loads nothing but its own files.
+
+**When a check fails**, the report names the sentence it was testing, the value it actually
+got, and the file and line to open:
+
+    app: 1 of 336 checks FAILED
+
+      1) the Share rules beat the shared button rules, which ask for a taller one
+         expected this to be true, but it was not
+         got:   44px
+         check: tests/app.mjs:122
+
+A failure means one of two things. Either the app broke, or the app changed on purpose and
+the check still describes the old behaviour. Read the sentence first: it says what was
+meant to be true. On GitHub the same message appears as an annotation on the job summary.
+
+### What the tests cannot see
+
+jsdom is not a browser, and it fails quietly rather than loudly. It ignores:
+
+- `:hover`, `::before` and `::after`, so anything drawn by those is invisible to a test
+- `@media (hover: none)`, so the whole touch appearance is untested
+- `border` and `border-radius` shorthands holding a `var()`, which it discards entirely
+- layout. Every rectangle measures zero, so nothing can be checked by position
+
+It also reports **declared** values rather than used ones. A declared `height: 34px` is
+reported as `34px` even while a `min-height: 44px` from another rule is the one the browser
+obeys. That exact case shipped a visibly wrong button while the suite stayed green.
+
+So a pass is worth something, but it is not proof that the page looks right. Open it in a
+browser too, and on a phone for anything to do with touch.
 
 ## Using the page
 

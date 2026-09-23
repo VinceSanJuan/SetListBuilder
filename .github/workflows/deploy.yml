@@ -1,11 +1,17 @@
-# Checks songs.tsv, then publishes the site to GitHub Pages.
+# Checks the data, runs the tests, then publishes the site to GitHub Pages.
 # Pages source must be set to "GitHub Actions" in Settings > Pages.
 # Nothing is committed back to the repo, so this workflow cannot trigger itself.
+#
+# The tests are the only thing that needs installed packages, so they run in
+# their own job. The build job therefore has no node_modules folder to sweep
+# up, and "path: ." stays exactly the set of files the site is made of.
 
 name: Deploy to Pages
 
 on:
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -14,12 +20,14 @@ permissions:
   pages: write
   id-token: write
 
+# Keyed by branch, so a pull request check can never cancel a deploy of main.
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
+  test:
+    name: Check the data and run the tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,11 +35,56 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
-      # Fails the deploy when a key, Camelot value or BPM is wrong,
-      # so bad song data never reaches the live page.
+      - name: Install the test tools
+        run: npm ci
+
+      # Fails when a key, Camelot value or BPM is wrong, so bad song data
+      # never reaches the live page. This is the check a songs.tsv edit needs.
       - name: Check songs.tsv
-        run: node tools/validate.mjs songs.tsv
+        run: npm run validate
+
+      # Drives the real app.js against a jsdom document. A failing check is
+      # reported with the file and line to open, and is raised as an
+      # annotation so it appears on the job summary as well as in the log.
+      - name: Run the test suites
+        run: npm test
+
+      - name: Say where to look when something failed
+        if: failure()
+        run: |
+          {
+            echo "### The checks did not pass"
+            echo ""
+            echo "Every failure is listed above with the sentence it was testing,"
+            echo "the value it actually got, and the file and line to open."
+            echo ""
+            echo "A check can fail for two different reasons:"
+            echo ""
+            echo "1. The app broke. Fix the app."
+            echo "2. The app changed on purpose and the check still describes the"
+            echo "   old behaviour. Update the check."
+            echo ""
+            echo "Read the sentence in the failure first. It says what was meant to be true."
+            echo ""
+            echo "To reproduce it on your own machine:"
+            echo ""
+            echo '```'
+            echo "npm ci"
+            echo "npm test"
+            echo '```'
+            echo ""
+            echo "Nothing was published. The site still serves the last version that passed."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    name: Package the site
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - uses: actions/configure-pages@v5
 
@@ -40,6 +93,7 @@ jobs:
           path: .
 
   deploy:
+    name: Publish
     needs: build
     runs-on: ubuntu-latest
     environment:
