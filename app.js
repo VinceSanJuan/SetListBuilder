@@ -1247,9 +1247,11 @@ function cancelPress() {
   press = null;
 }
 
-function beginDrag(kind, el, pointerId, captureEl) {
+function beginDrag(kind, el, pointerId, captureEl, pointerY) {
   if (!el) return;
-  drag = { kind, el, panned: captureEl };
+  // where the pointer sits inside the element, so it does not jump on pickup
+  drag = { kind, el, panned: captureEl, dy: 0,
+    grab: pointerY - el.getBoundingClientRect().top };
   el.classList.add('dragging');
   // A row normally allows a vertical pan. While it is being dragged it must not,
   // or the browser starts scrolling and takes the gesture away from us.
@@ -1269,11 +1271,27 @@ function autoScroll(y) {
   else if (y > innerHeight - margin) scrollBy(0, 14);
 }
 
+/* Keep the picked up element under the pointer, vertically only, so it cannot
+   wander out of its column. Reordering moves the element in the DOM, which changes
+   its layout position, so the offset is measured afresh on every move rather than
+   accumulated. */
+function followPointer(y) {
+  // The rectangle already includes the shift applied last time, so taking that
+  // off again gives the position the layout wants. Asking the browser for it by
+  // clearing the transform first would force a second reflow on every move.
+  const layoutTop = drag.el.getBoundingClientRect().top - drag.dy;
+  drag.dy = Math.round(y - drag.grab - layoutTop);
+  drag.el.style.transform = `translateY(${drag.dy}px)`;
+}
+
 function moveDrag(event) {
   event.preventDefault();
   autoScroll(event.clientY);
-  const y = event.clientY;
+  reorder(event.clientY);
+  followPointer(event.clientY);
+}
 
+function reorder(y) {
   if (drag.kind === 'group') {
     for (const g of groupsEl.querySelectorAll('.group')) {
       if (g === drag.el) continue;
@@ -1287,13 +1305,21 @@ function moveDrag(event) {
     return;
   }
 
+  // A group header, the Add song button and the gap between two cards all sit
+  // between one list and the next. Asking the pointer to be inside a list left
+  // the row without a target while it crossed them, so the nearest list wins
+  // instead. The row then changes group at the halfway point of that space.
   let list = null;
+  let nearest = Infinity;
   for (const ul of groupsEl.querySelectorAll('.songs')) {
+    if (ul.closest('.group').classList.contains('collapsed')) continue;
     const box = ul.getBoundingClientRect();
-    if (y >= box.top - 24 && y <= box.bottom + 24) {
+    const away = y < box.top ? box.top - y : Math.max(0, y - box.bottom);
+    if (away < nearest) {
+      nearest = away;
       list = ul;
-      break;
     }
+    if (away === 0) break; // inside a list, so no other can be nearer
   }
   if (!list) return;
 
@@ -1305,11 +1331,17 @@ function moveDrag(event) {
       return;
     }
   }
-  list.append(drag.el);
+  // The Add song button is the last item of the list and it stays there when the
+  // row is dropped, so the row goes in front of it rather than after it.
+  const slots = list.querySelectorAll(':scope > li.slot');
+  const tail = slots[slots.length - 1];
+  if (tail && tail !== drag.el) list.insertBefore(drag.el, tail);
+  else list.append(drag.el);
 }
 
 /** Read the order back out of the DOM, so no index arithmetic is needed. */
 function endDrag() {
+  drag.el.style.transform = '';
   drag.el.classList.remove('dragging');
   drag.panned?.classList.remove('no-pan');
   document.body.classList.remove('dragging-active');
@@ -1618,7 +1650,8 @@ function wire() {
     const handle = event.target.closest('.handle');
     if (handle) {
       const kind = handle.dataset.drag;
-      beginDrag(kind, handle.closest(kind === 'group' ? '.group' : '.song'), event.pointerId, handle);
+      beginDrag(kind, handle.closest(kind === 'group' ? '.group' : '.song'),
+        event.pointerId, handle, event.clientY);
       event.preventDefault();
       return;
     }
@@ -1627,6 +1660,7 @@ function wire() {
     if (!row || event.target.closest('button, a, input, .editor, .search-panel')) return;
 
     const pointerId = event.pointerId;
+    const pointerY = event.clientY;
     swipe = {
       el: row,
       wrap: row.closest('.swipe-wrap'),
@@ -1642,7 +1676,8 @@ function wire() {
         row.style.transform = '';
         row.closest('.swipe-wrap')?.classList.remove('swiping', 'armed');
         const inSong = row.closest('.song');
-        beginDrag(inSong ? 'song' : 'group', inSong ?? row.closest('.group'), pointerId, row);
+        beginDrag(inSong ? 'song' : 'group', inSong ?? row.closest('.group'),
+          pointerId, row, pointerY);
       }, HOLD_MS),
     };
   });

@@ -153,6 +153,8 @@ h1 {
 /* ---------- swipe to delete ---------- */
 
 .swipe-wrap { position: relative; overflow: hidden; }
+/* inside a 14px corner, less the 5px colour edge and the 1px border */
+.group > .swipe-wrap:first-child { border-radius: 9px 13px 0 0 / 13px 13px 0 0; }
 
 /* Sits behind the row. A trash mark at each end, so whichever side the row
    uncovers shows one. Only visible once a sideways swipe actually starts. */
@@ -276,7 +278,15 @@ h1 {
   border: 1px solid var(--line); border-left: 5px solid var(--gc);
   border-radius: 14px; box-shadow: var(--shadow); overflow: hidden;
 }
-.group.dragging, .song.dragging { opacity: 0.6; outline: 2px dashed var(--accent); outline-offset: -2px; }
+/* it follows the pointer, so it has to ride above the rows it passes over */
+/* it follows the pointer, so it has to ride above the rows it passes over,
+   but stay under the sticky top bar, which is also at 5 */
+.group.dragging, .song.dragging {
+  opacity: 0.6; outline: 2px dashed var(--accent); outline-offset: -2px;
+  position: relative; z-index: 4; will-change: transform;
+}
+/* a row being carried to another group leaves its card, so nothing may clip it */
+body.dragging-active .group { overflow: visible; }
 
 .ghead {
   display: flex; align-items: center; gap: 6px;
