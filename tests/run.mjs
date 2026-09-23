@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const SUITES = [
   ['data', 'tsv.mjs', 'reading songs.tsv, including what a spreadsheet does to it'],
+  ['lookup', 'lookup.mjs', 'turning a PraiseCharts page into a songs.tsv row'],
   ['startup', 'startup.mjs', 'share links, damaged data, and a failed fetch'],
   ['app', 'app.mjs', 'the page itself: searching, editing, dragging, sharing'],
 ];

@@ -73,6 +73,16 @@ const wait = (ms = 10) => new Promise((r) => setTimeout(r, ms));
 // the library grows; read its size rather than freezing a number into the test
 const TOTAL = songsTsv.split(/\r\n|\n|\r/).filter((l) => l.trim() !== '').length - 1;
 
+// A tag that appears in no part of the name of the song carrying it. Taken from
+// the library rather than named here, because the library is edited often and a
+// test that names one song goes stale the moment that song is changed.
+const tagOnly = songsTsv.split(/\r\n|\n|\r/).slice(1)
+  .map((line) => line.split('\t'))
+  .filter((cells) => cells[0] && cells[5])
+  .flatMap((cells) => cells[5].split(';')
+    .map((tag) => ({ title: cells[0], name: `${cells[0]} ${cells[1] ?? ''}`.toLowerCase(), tag: tag.trim() })))
+  .find((x) => x.tag && !x.name.includes(x.tag.toLowerCase()));
+
 const groups = () => $$('.group');
 /** The loud button at the end of a group. The quiet gaps share its action. */
 const addBtn = (i) => groups()[i].querySelector('.plus[data-act="open-search"]');
@@ -195,15 +205,19 @@ check(text($('.browse .rcount')).includes('nothing is added'), 'the panel says s
   text($('.browse .rcount')));
 check(!!$('.browse .libitem .cam'), 'each row still shows its Camelot badge');
 
+check(!!tagOnly, 'the library holds a song whose tag is nowhere in its name, to search for');
+
 type($('.browse .b-q'), 'wickham');
-check($$('.browse .libitem').length === 3, 'the library search filters',
-  String($$('.browse .libitem').length));
+check($$('.browse .libitem').length > 0
+  && $$('.browse .libitem').every((r) => text(r).toLowerCase().includes('wickham')),
+  'the library search filters, and to that artist only',
+  $$('.browse .libitem').map(text).join(' | '));
 type($('.browse .b-q'), 'zzzz');
 check(!!$('.browse .none-found'), 'and says when nothing matches');
-type($('.browse .b-q'), 'praise');
-const libHit = $$('.browse .libitem').find((r) => text(r).includes('10,000 Reasons'));
+type($('.browse .b-q'), tagOnly.tag);
+const libHit = $$('.browse .libitem').find((r) => text(r).includes(tagOnly.title));
 check(!!libHit && !!libHit.querySelector('.tag.hit'),
-  'the library marks the matched tag too', text(libHit));
+  'the library marks the matched tag too', libHit ? text(libHit) : 'that song did not appear');
 
 type($('.browse .b-q'), '10,000');
 const libLinks = $('.browse [data-act="lib-links"]');
@@ -250,18 +264,26 @@ check($$('.result').length > 0
   }),
   'every word of a search must match', $$('.result .r-title').map(text).join(' | '));
 
-// "praise" is in the tags of 10,000 Reasons but not in its title or artist
-type(q, 'praise');
-const byTag = $$('.result').find((r) => text(r).includes('10,000 Reasons'));
-check(!!byTag, 'a tag only match still turns up', $$('.result .r-title').map(text).join(' | '));
+type(q, tagOnly.tag);
+const byTag = $$('.result').find((r) => text(r.querySelector('.r-title')) === tagOnly.title);
+check(!!byTag, `a tag only match still turns up, here "${tagOnly.tag}" finding ${tagOnly.title}`,
+  $$('.result .r-title').map(text).join(' | '));
 check(!!byTag.querySelector('.tag.hit'), 'and the row reveals the tag that matched',
   text(byTag));
-check(text(byTag.querySelector('.tag.hit')) === 'praise', 'naming the tag itself',
+check(text(byTag.querySelector('.tag.hit')) === tagOnly.tag, 'naming the tag itself',
   text(byTag.querySelector('.tag.hit')));
 
-const byTitle = $$('.result').find((r) => text(r).includes('Praise') && text(r).includes('Elevation'));
-check(byTitle && !byTitle.querySelector('.tag.hit'),
-  'a title match shows no tag, the title already explains it', text(byTitle));
+// The same search, on a song that matched by its name instead.
+const byName = $$('.result').find((r) => {
+  const title = text(r.querySelector('.r-title'));
+  return title !== tagOnly.title && title.toLowerCase().includes(tagOnly.tag.toLowerCase());
+});
+if (byName) {
+  check(!byName.querySelector('.tag.hit'),
+    'a title match shows no tag, the title already explains it', text(byName));
+} else {
+  check(true, `nothing else matched "${tagOnly.tag}" by name, so there is no title case to check`);
+}
 
 /* ---------- 4. adding a song ---------- */
 

@@ -125,6 +125,60 @@ Notes:
 - You can also start a deploy by hand: Actions > Deploy to Pages > Run workflow.
 - A private repository needs a paid GitHub plan for Pages. A public one is free.
 
+## Look a song up instead of typing it
+
+    npm run lookup      # then open http://localhost:8081
+
+Paste song names into the box, one per line, press **Look up**, and you get rows ready to
+paste onto the end of `songs.tsv`. There is a command line version too:
+
+    node tools/lookup.mjs "Washed" "Elevation Rhythm"
+    node tools/lookup.mjs < list.txt            # one song per line
+    node tools/lookup.mjs < list.txt >> songs.tsv   # rows only, notes go to the screen
+
+**A PraiseCharts address works in place of a name**, on the command line or on any line of
+the box:
+
+    node tools/lookup.mjs https://www.praisecharts.com/songs/details/71880/worthy-sheet-music/chords
+
+That skips the search, so nothing is guessed. It is the cure for a wrong match: searching
+for `Worthy Elevation Worship` returns `God I'm Just Grateful`, while the address returns
+`Worthy`. Copy the address from the browser; any of the tabs will do, and the scheme and
+the `www.` are both optional.
+
+It reads [PraiseCharts](https://www.praisecharts.com). One search, then one song page, with
+a gap between songs. The song page carries a JSON payload holding the key, the BPM, the
+artists, the themes and a YouTube link, which is read instead of the rendered text.
+
+| Column | Where it comes from |
+| --- | --- |
+| `title`, `artist` | the matched song. Shouted names such as `ELEVATION RHYTHM` are toned down |
+| `key` | the published chart key |
+| `bpm` | the song page |
+| `camelot` | **not fetched.** `music.js` works it out from the key, so the two cannot disagree |
+| `tags` | the first three themes, in lower case. The page lists the rest so you can swap one in |
+| `urls` | `Youtube=` when the page has a video |
+
+**Check every row before you keep it.** Three things go wrong often enough to matter:
+
+1. The first search result is a guess, and sometimes a poor one. The page shows you which
+   song it matched. When it is wrong, paste the address instead of the name.
+2. The key is the key the chart is published in, which is not always the key on the
+   recording. `Praise` by Elevation Worship comes back as `Ab`, not `A`.
+3. The BPM is sometimes counted at half speed. `10,000 Reasons` comes back as `70` rather
+   than `145`. Both are defensible; only one matches the rest of your file.
+
+Nothing is written to `songs.tsv`. The rows are yours to paste, so a wrong match costs you
+nothing.
+
+### Why it needs a server
+
+The published page cannot do this. A browser refuses to let one site read another site's
+pages unless that site allows it, and PraiseCharts does not. So the fetching stays in Node
+and `npm run lookup` serves a small page that asks Node to do it. It runs only while you
+run it, and only on your own machine. Opened any other way, the page says so rather than
+failing quietly.
+
 ## Tests
 
     npm ci      # once, to fetch jsdom

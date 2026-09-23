@@ -1,0 +1,209 @@
+<!doctype html>
+<!--
+  Song lookup, a tool for Set List Builder.
+  Copyright (C) 2026 Vince San Juan. GNU GPL v3 or later, see LICENSE.
+
+  Served by tools/lookup-server.mjs on your own machine. It is not part of the
+  published site and will not work there, because the fetching has to happen in
+  Node rather than in the browser.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Song lookup</title>
+  <style>
+    :root {
+      --bg: #0d0d0d; --surface: #171717; --surface2: #212121; --line: #2e2e2e;
+      --ink: #f2f2f2; --muted: #ababab; --accent: #9b8cff; --accent-ink: #14121f;
+      --warn: #e0b341; --bad: #e88b8b;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 20px 16px 60px; background: var(--bg); color: var(--ink);
+      font: 400 15px/1.5 "Instrument Sans", system-ui, -apple-system, sans-serif;
+    }
+    main { max-width: 900px; margin: 0 auto; }
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    h2 { margin: 26px 0 8px; font-size: 16px; }
+    p.note { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
+    label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; }
+
+    textarea {
+      width: 100%; padding: 12px; color: var(--ink); background: var(--surface);
+      border: 1px solid var(--line); border-radius: 12px; resize: vertical;
+      font: 400 14px/1.6 ui-monospace, Consolas, monospace;
+    }
+    textarea:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+    .row { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+    button {
+      min-height: 40px; padding: 0 16px; border: 0; border-radius: 10px;
+      background: var(--accent); color: var(--accent-ink);
+      font: 600 14px "Instrument Sans", system-ui, sans-serif; cursor: pointer;
+      transition: filter 0.12s;
+    }
+    button:hover:not(:disabled) { filter: brightness(1.09); }
+    button.quiet { background: transparent; color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .status { color: var(--muted); font-size: 14px; }
+
+    ul.found { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+    li.item {
+      padding: 10px 12px; background: var(--surface); border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+    li.item.bad { border-color: var(--bad); }
+    .asked { color: var(--muted); font-size: 13px; }
+    .got { font-weight: 600; }
+    .why { margin-top: 3px; color: var(--warn); font-size: 13.5px; }
+    .why.bad { color: var(--bad); }
+    .themes { margin-top: 3px; color: var(--muted); font-size: 13px; }
+    .hint { margin: 10px 0 0; color: var(--muted); font-size: 13.5px; }
+    code { background: var(--surface2); padding: 1px 5px; border-radius: 5px; font-size: 13px; }
+    #offline { padding: 12px; border: 1px solid var(--bad); border-radius: 10px; color: var(--bad); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Song lookup</h1>
+  <p class="note">
+    Reads PraiseCharts and gives you rows for <code>songs.tsv</code>.
+    The Camelot value is not fetched: it is worked out from the key by the same
+    code the app uses.
+  </p>
+
+  <div id="offline" hidden>
+    This page only works when served by <code>npm run lookup</code> on your own
+    machine. Opened any other way, the lookups cannot run.
+  </div>
+
+  <label for="q">Songs to look up, one per line.</label>
+  <p class="note">
+    A name and artist together works well enough most of the time. When the wrong
+    song comes back, find it on PraiseCharts yourself and paste its address
+    instead: that skips the search, so there is nothing left to guess.
+  </p>
+  <textarea id="q" rows="7" spellcheck="false"
+            placeholder="Washed Elevation Rhythm&#10;The Blessing Kari Jobe&#10;https://www.praisecharts.com/songs/details/71880/worthy-sheet-music/chords"></textarea>
+
+  <div class="row">
+    <button id="go">Look up</button>
+    <span class="status" id="status"></span>
+  </div>
+
+  <h2 id="found-head" hidden>What was found</h2>
+  <ul class="found" id="found"></ul>
+
+  <h2 id="out-head" hidden>Rows for songs.tsv</h2>
+  <textarea id="out" rows="8" readonly spellcheck="false" hidden></textarea>
+  <div class="row" id="out-actions" hidden>
+    <button id="copy" class="quiet">Copy</button>
+    <span class="status" id="copied"></span>
+  </div>
+  <p class="hint" id="out-hint" hidden>
+    Check these before you keep them. The first search result is a guess, the key
+    is the published chart key rather than the key on the recording, and the BPM
+    is sometimes counted at half speed. Paste onto the end of
+    <code>songs.tsv</code>, keeping one row per line.
+  </p>
+</main>
+
+<script>
+  const $ = (s) => document.querySelector(s);
+  const q = $('#q');
+  const go = $('#go');
+  const status = $('#status');
+  const found = $('#found');
+  const out = $('#out');
+
+  // Opened straight from the file system, or from the published site, there is
+  // no server behind this page and nothing will work. Say so rather than fail.
+  if (location.protocol !== 'http:' || !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
+    $('#offline').hidden = false;
+    go.disabled = true;
+  }
+
+  const show = (el, on = true) => { el.hidden = !on; };
+
+  function render(results) {
+    found.replaceChildren();
+    for (const r of results) {
+      const li = document.createElement('li');
+      li.className = 'item' + (r.found ? '' : ' bad');
+
+      const asked = document.createElement('div');
+      asked.className = 'asked';
+      asked.textContent = 'asked for: ' + r.query;
+      li.append(asked);
+
+      const got = document.createElement('div');
+      got.className = 'got';
+      got.textContent = r.found
+        ? `${r.song.title} — ${r.song.artist || 'no artist named'}`
+        : 'nothing found';
+      li.append(got);
+
+      for (const note of r.notes || []) {
+        const why = document.createElement('div');
+        why.className = 'why' + (r.found ? '' : ' bad');
+        why.textContent = note;
+        li.append(why);
+      }
+
+      // Only the first few themes become tags, so the rest are shown here in
+      // case a better one is further down the list.
+      if (r.found && r.song.themes.length > 3) {
+        const rest = document.createElement('div');
+        rest.className = 'themes';
+        rest.textContent = 'other themes: ' + r.song.themes.slice(3).join(', ');
+        li.append(rest);
+      }
+      found.append(li);
+    }
+    show($('#found-head'), results.length > 0);
+  }
+
+  async function run() {
+    const queries = q.value.split('\n').map((l) => l.trim()).filter(Boolean);
+    if (!queries.length) { status.textContent = 'Nothing to look up yet.'; return; }
+
+    go.disabled = true;
+    found.replaceChildren();
+    for (const el of ['#out-head', '#out', '#out-actions', '#out-hint']) show($(el), false);
+
+    const results = [];
+    for (const [i, query] of queries.entries()) {
+      status.textContent = `Looking up ${i + 1} of ${queries.length}: ${query}`;
+      try {
+        const res = await fetch('/api/lookup?q=' + encodeURIComponent(query));
+        results.push(await res.json());
+      } catch (err) {
+        results.push({ query, found: false, notes: ['the lookup server did not answer'] });
+      }
+      render(results);
+    }
+
+    const rows = results.filter((r) => r.found).map((r) => r.row);
+    out.value = rows.join('\n');
+    const ok = rows.length;
+    status.textContent = `${ok} of ${queries.length} found.`;
+    for (const el of ['#out-head', '#out', '#out-actions', '#out-hint']) show($(el), ok > 0);
+    go.disabled = false;
+  }
+
+  go.addEventListener('click', run);
+  $('#copy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(out.value);
+      $('#copied').textContent = 'Copied.';
+    } catch {
+      out.select();
+      $('#copied').textContent = 'Selected. Press Ctrl+C.';
+    }
+    setTimeout(() => { $('#copied').textContent = ''; }, 4000);
+  });
+</script>
+</body>
+</html>
