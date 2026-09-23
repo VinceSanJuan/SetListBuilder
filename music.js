@@ -208,6 +208,26 @@ export function songsFromTsv(text) {
 /* ---------- song records ---------- */
 
 /** Fill in whichever of key/camelot is blank; report a disagreement. */
+/**
+ * What to say about a Camelot value that will not parse. Nearly always the
+ * letter has been left off, so the message says which letter to add rather than
+ * only that something is wrong.
+ */
+function camelotAdvice(text, keyText) {
+  const t = String(text).trim();
+  const n = Number(t);
+  if (/^\d{1,2}$/.test(t) && n >= 1 && n <= 12) {
+    const fromKey = keyText ? camelotForKey(keyText) : null;
+    const because = fromKey
+      ? ` The key "${keyText}" makes it ${fromKey}.`
+      : '';
+    return `camelot "${t}" has no letter. Write ${t}A for a minor key or ${t}B for a major`
+      + ` one.${because} An empty cell works too, because the key gives it.`;
+  }
+  return `unrecognized camelot "${t}". It needs a number from 1 to 12 and a letter,`
+    + ' such as 8A or 10B.';
+}
+
 export function resolveKey(keyText, camelotText) {
   const hasKey = typeof keyText === 'string' && keyText.trim() !== '';
   const hasCam = typeof camelotText === 'string' && camelotText.trim() !== '';
@@ -218,7 +238,7 @@ export function resolveKey(keyText, camelotText) {
   if (hasKey && !fromKey) return { error: `unrecognized key "${keyText}"` };
 
   const fromCam = hasCam ? parseCamelot(camelotText) : null;
-  if (hasCam && !fromCam) return { error: `unrecognized camelot "${camelotText}"` };
+  if (hasCam && !fromCam) return { error: camelotAdvice(camelotText, hasKey ? keyText : '') };
 
   if (hasKey && hasCam && fromKey !== camelotStr(fromCam)) {
     return { error: `key "${keyText}" is camelot ${fromKey}, but file says ${camelotStr(fromCam)}` };

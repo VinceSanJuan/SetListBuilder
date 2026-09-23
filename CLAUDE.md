@@ -23,6 +23,7 @@ this file is for working on it.
 | `styles.css` | All styling. Dark by default, light theme available. |
 | `songs.tsv` | The song library. Edited by hand, in a spreadsheet or an editor. |
 | `tools/validate.mjs` | Checks `songs.tsv`. Runs in CI before anything is published. |
+| `tools/serve.mjs` | `npm run serve`. Serves the folder over http so the page will run. |
 | `tools/lookup.mjs` | Fetches a song from PraiseCharts, by name or by pasted address, and builds a `songs.tsv` row. |
 | `tools/lookup-server.mjs`, `tools/lookup.html` | `npm run lookup`. A local page for the same thing. |
 | `tests/` | Four suites. The README has a section on them. |

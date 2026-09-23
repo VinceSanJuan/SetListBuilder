@@ -1,9 +1,9 @@
 /* Copyright (C) 2026 Vince San Juan. GNU GPL v3 or later, see LICENSE. */
 /* The awkward cases a spreadsheet actually produces. */
-import { parseTsv, songsFromTsv, prepareSongs } from '../music.js';
+import { parseTsv, songsFromTsv, prepareSongs, resolveKey } from '../music.js';
 import { reporter } from './report.mjs';
 
-const { eq, done } = reporter('data', import.meta.url);
+const { check, eq, done } = reporter('data', import.meta.url);
 
 eq(parseTsv('a\tb\nc\td'), [['a','b'],['c','d']], 'plain rows');
 eq(parseTsv('a\tb\r\nc\td\r\n'), [['a','b'],['c','d']], 'CRLF from Excel, trailing newline dropped');
@@ -55,6 +55,28 @@ try {
 } catch (err) {
   eq(err.message.includes('title'), true, 'a header with no title column is refused clearly');
 }
+
+/* A Camelot value typed without its letter is the mistake that actually happens,
+   so the message has to say which letter to add rather than only that it is wrong. */
+
+const err = (key, cam) => resolveKey(key, cam).error ?? '';
+
+check(err('D', '10').includes('10B'),
+  'a Camelot value with no letter is told which letter its key needs', err('D', '10'));
+check(err('D', '10').includes('10A'),
+  'and is shown the other one as well, since the key could have been mistyped');
+check(err('Am', '8').includes('8A'), 'a minor key points at the A side', err('Am', '8'));
+check(err('', '10').includes('10A') && err('', '10').includes('10B'),
+  'with no key to go on, both letters are offered', err('', '10'));
+check(err('D', '10').includes('empty'),
+  'and it says the cell can simply be left empty', err('D', '10'));
+
+check(err('D', '13A').includes('1 to 12'),
+  'a number off the wheel is told the range', err('D', '13A'));
+check(err('D', '10C').includes('8A'), 'a letter off the wheel is shown the shape wanted',
+  err('D', '10C'));
+check(err('D', '10B') === '', 'a Camelot value that agrees with the key is no error at all');
+check(resolveKey('D', '').camelot === '10B', 'and an empty cell is filled in from the key');
 
 eq(parseTsv(''), [], 'empty text gives no rows');
 eq(songsFromTsv(''), [], 'and no songs');

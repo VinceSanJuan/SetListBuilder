@@ -1,0 +1,59 @@
+{
+  // Ctrl+Shift+B runs the first one. Checking songs.tsv here takes a second and
+  // saves finding out from a failed deploy several minutes later. The other three
+  // are under Run Task. Serving the page and the lookup both stay running until
+  // you stop them.
+
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Check songs.tsv",
+      "type": "shell",
+      "command": "npm run validate",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "Serve the page",
+      "type": "shell",
+      "command": "npm run serve",
+      "problemMatcher": [],
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Run the tests",
+      "type": "shell",
+      "command": "npm test",
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "Look a song up",
+      "type": "shell",
+      "command": "npm run lookup",
+      "problemMatcher": [],
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    }
+  ]
+}

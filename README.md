@@ -17,14 +17,19 @@ Static site, no backend, no build step. It runs on GitHub Pages.
 ## Run it on your machine
 
 A browser blocks `fetch` when a page is opened as `file://`, so the page must be served
-over http. Either is fine:
+over http:
 
-    py -m http.server 8080
+    npm run serve
 
-...then open `http://localhost:8080/`. Or install the **Live Server** extension in
-VS Code, right click `index.html` and choose *Open with Live Server*.
+...then open `http://localhost:8080/`. In VS Code there is a task for it: **Run Task**,
+then *Serve the page*.
 
-Edit `songs.tsv`, save, refresh the page. There is nothing to rebuild.
+It is a few lines of Node rather than `py -m http.server`, so the same command works on
+Windows and in a Codespace, and the modules are served as `text/javascript` rather than as
+plain text, which is the difference between the page running and not.
+
+Edit `songs.tsv`, save, refresh the page. There is nothing to rebuild and nothing is
+cached.
 
 To check the data the same way the Action does:
 
@@ -93,9 +98,8 @@ extensions, so they are ready when it opens:
 - **Rainbow CSV** (`mechatroner.rainbow-csv`) — colours each column and lines them up while
   you read the plain text, and warns when a row has the wrong number of columns.
 
-In a Codespace you also get a terminal, so `node tools/validate.mjs` and
-`python3 -m http.server 8080` both work. Port 8080 is forwarded for you, so the preview opens
-in a browser tab.
+In a Codespace you also get a terminal, so `npm run validate` and `npm run serve` both
+work. Port 8080 is forwarded for you, so the preview opens in a browser tab.
 
 Free allowances change, so check the current Codespaces figure on your GitHub billing page.
 `github.dev` is free and unmetered.
