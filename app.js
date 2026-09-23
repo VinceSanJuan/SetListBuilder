@@ -62,8 +62,6 @@ const ic = {
   wheel: svg('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M12 3v5.5M12 15.5V21M3 12h5.5M15.5 12H21"/>'),
   undo: svg('<path d="M9 5 5 9l4 4"/><path d="M5 9h9a5 5 0 0 1 0 10h-4"/>'),
   redo: svg('<path d="m15 5 4 4-4 4"/><path d="M19 9h-9a5 5 0 0 0 0 10h4"/>'),
-  copy: svg('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'),
-  share: svg('<circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/>'),
   sun: svg('<circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.4 1.4M17.6 17.6 19 19M19 5l-1.4 1.4M6.4 17.6 5 19"/>'),
   moon: svg('<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/>'),
   warn: svg('<path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4M12 17h.01"/>', 16),
@@ -84,6 +82,8 @@ const btnUndo = $('#btn-undo');
 const btnRedo = $('#btn-redo');
 const btnTheme = $('#btn-theme');
 const btnBrowse = $('#btn-browse');
+const btnShare = $('#btn-share');
+const shareDialog = $('#share-menu');
 const browseEl = $('#browse');
 const toastEl = $('#toast');
 const hintEl = $('#hint');
@@ -1175,7 +1175,7 @@ function restore(step, message) {
 const undo = () => { if (undoAt > 0) restore(-1, 'Undone.'); };
 const redo = () => { if (undoAt < undoStack.length - 1) restore(1, 'Redone.'); };
 
-function setListText() {
+function setListText(withArtist) {
   const blocks = [];
   for (const g of state.groups) {
     if (!g.entries.length) continue;
@@ -1183,7 +1183,7 @@ function setListText() {
       const song = songFor(e);
       if (!song) return `Song not found: ${e.songId}`;
       // an unknown artist is left out, rather than leaving an empty middle part
-      return [song.title, song.artist, effective(e, song).key || '--']
+      return [song.title, withArtist ? song.artist : null, effective(e, song).key || '--']
         .filter(Boolean).join(' - ');
     });
     blocks.push(`${g.name}\n${lines.join('\n')}`);
@@ -1282,6 +1282,9 @@ function followPointer(y) {
   const layoutTop = drag.el.getBoundingClientRect().top - drag.dy;
   drag.dy = Math.round(y - drag.grab - layoutTop);
   drag.el.style.transform = `translateY(${drag.dy}px)`;
+  // the outline marking the landing place rides along, so it is pushed back by
+  // the same amount to stay on the gap the row left
+  drag.el.style.setProperty('--slot-back', `${-drag.dy}px`);
 }
 
 function moveDrag(event) {
@@ -1342,6 +1345,7 @@ function reorder(y) {
 /** Read the order back out of the DOM, so no index arithmetic is needed. */
 function endDrag() {
   drag.el.style.transform = '';
+  drag.el.style.removeProperty('--slot-back');
   drag.el.classList.remove('dragging');
   drag.panned?.classList.remove('no-pan');
   document.body.classList.remove('dragging-active');
@@ -1408,6 +1412,36 @@ function endSwipe() {
   else deleteGroup(el.closest('.group').dataset.gid);
 }
 
+/* ---------- the Share control ----------
+   One button, and every choice named in full when it opens. A small menu
+   hanging off the corner of a phone screen was hard to aim at and hard to
+   read, so the choices come up as a proper dialog: the page dims behind them
+   and they sit near the top, where the button that called them is. Being a
+   real dialog, the browser supplies the dimming, the focus trap, Escape and
+   the top layer, so none of that has to be written or kept in step. */
+
+function wireShare() {
+  btnShare.addEventListener('click', () => shareDialog.showModal());
+
+  shareDialog.addEventListener('click', (event) => {
+    // the dialog element itself is only ever the dimmed area around the card
+    if (event.target === shareDialog || event.target.closest('[data-share-close]')) {
+      shareDialog.close();
+      return;
+    }
+    const kind = event.target.closest('[data-share]')?.dataset.share;
+    if (!kind) return;
+    shareDialog.close();
+    if (kind === 'url') {
+      copyText(`${location.origin}${location.pathname}#${toHash(state)}`, 'Share link copied.');
+    } else if (kind === 'full') {
+      copyText(setListText(true), 'Song, artist and key copied.');
+    } else {
+      copyText(setListText(false), 'Song and key copied.');
+    }
+  });
+}
+
 /* ---------- wiring ---------- */
 
 function wire() {
@@ -1415,11 +1449,7 @@ function wire() {
   btnRedo.addEventListener('click', redo);
   btnTheme.addEventListener('click', () =>
     setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
-  $('#btn-copy').innerHTML = ic.copy;
-  $('#btn-copy').addEventListener('click', () => copyText(setListText(), 'Set list copied.'));
-  $('#btn-share').innerHTML = ic.share;
-  $('#btn-share').addEventListener('click', () =>
-    copyText(`${location.origin}${location.pathname}#${toHash(state)}`, 'Share link copied.'));
+  wireShare();
   btnUndo.innerHTML = ic.undo;
   btnRedo.innerHTML = ic.redo;
   btnBrowse.innerHTML = ic.search;

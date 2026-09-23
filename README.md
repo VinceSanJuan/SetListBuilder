@@ -132,8 +132,8 @@ edge. Add more with the button at the bottom: it asks for a name first, and offe
 Communion, Closing and Prayer as ready made choices. Rename a group by double tapping its
 name, or with its pencil button. The chevron folds a group away when the page gets long.
 
-**The top row.** Left to right: library search, undo, redo, copy set list, share link,
-light and dark. The first one opens a read only view of the whole library, described below.
+**The top row.** Left to right: library search, undo, redo, **Share**, light and dark. The
+first one opens a read only view of the whole library, described below.
 
 **The header strip.** Under the title you get the song count and every Camelot value in
 playing order. Badges are tinted by their place on the wheel, so neighbouring keys look
@@ -205,22 +205,31 @@ together, so the two can never disagree.
 an amber line appears on the lower song and names both Camelot values. Group boundaries are
 treated as a deliberate change of mood, so no warning is raised across them.
 
-**Copy Set List** gives you plain text:
+**Share** dims the page and brings up the three choices near the top of the screen. Every
+choice is named and explained, so nothing is hidden behind the button. Cancel, Escape, or a
+tap on the dimmed area closes it without copying anything.
+
+**Copy Songs and Keys** gives you the group, title and key of every song:
+
+    Opening
+    Yeshua - A maj
+
+    Joyful
+    Praise - A maj
+    Washed - B maj
+
+**Copy Songs, Artists and Keys** adds the artist to the middle:
 
     Opening
     Yeshua - Jesus Image - A maj
 
-    Joyful
-    Praise - Elevation Worship - A maj
-    Washed - Elevation Rhythm - B maj
+In both text forms, empty groups are left out and changed keys are used, not the original
+ones. A song with no artist prints as `Title - Key`, with no empty gap in the middle.
 
-Empty groups are left out. Changed keys are used, not the original ones. A song with no
-artist prints as `Title - Key`, with no empty gap in the middle.
-
-**Share link** copies a link that carries the whole set list in the address. Nothing is
-stored on a server. Open it in a new tab, paste it into the address bar of the tab you are
-already in, or send it to someone: all three work. Pasting it over your current set list
-replaces it, and **Undo** puts back what you had.
+**Share this Set List** copies a link that carries the whole set list in the address.
+Nothing is stored on a server. Open it in a new tab, paste it into the address bar of the
+tab you are already in, or send it to someone: all three work. Pasting it over your current
+set list replaces it, and **Undo** puts back what you had.
 
 Your set list is also saved in the browser as you work, so a reload does not lose it.
 

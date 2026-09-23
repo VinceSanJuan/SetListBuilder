@@ -119,7 +119,7 @@ h1 {
   letter-spacing: -0.01em;
 }
 
-.actions { display: flex; gap: 1px; flex: none; margin-left: auto; }
+.actions { display: flex; align-items: center; gap: 1px; flex: none; margin-left: auto; }
 
 .summary { display: flex; align-items: center; gap: 10px; min-height: 26px; margin-top: 6px; }
 .summary .n { color: var(--muted); font-size: 13px; white-space: nowrap; flex: none; }
@@ -203,6 +203,38 @@ h1 {
 .btn.danger { background: var(--danger); color: #150404; }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+/* ---------- Share, one highlighted control ---------- */
+
+/* Shorter than a full tap target on purpose, so it sits level with the icons
+   beside it instead of towering over them. These rules must stay after .btn,
+   which carries the same one class of weight and asks for a taller, fully
+   padded button, so only the later rule wins. */
+.share-btn {
+  min-height: 34px; height: 34px; padding: 0 14px;
+  font-size: 14px; border-radius: 11px;
+  margin-left: 5px; transition: filter 0.12s;
+}
+/* the icons lighten under the pointer, so this does too. Brightness rather than
+   a second colour, so it holds up in either theme. */
+.share-btn:hover { filter: brightness(1.09); }
+
+/* The choices, in the dialog the button opens. Each says what it copies, rather
+   than leaving the name to carry all of it, and each is a raised card with its
+   own outline, so three choices read as three things to press and not as one
+   block of text. */
+.share-picks { display: flex; flex-direction: column; gap: 8px; }
+.share-picks button {
+  display: flex; flex-direction: column; justify-content: center; gap: 2px;
+  min-height: 56px; padding: 10px 14px; border-radius: 12px;
+  color: var(--ink); text-align: left;
+  background: var(--surface2);
+  border-width: 1px; border-style: solid; border-color: var(--line);
+  transition: background 0.12s, border-color 0.12s;
+}
+.share-picks button:hover { background: var(--accent-soft); border-color: var(--accent); }
+.sm-title { font: 600 16px var(--body); }
+.sm-note { color: var(--muted); font-size: 13.5px; }
+
 /* ---------- messages ---------- */
 
 /* Floating message, bottom centre, dismissible. It keeps its live region in the
@@ -278,13 +310,29 @@ h1 {
   border: 1px solid var(--line); border-left: 5px solid var(--gc);
   border-radius: 14px; box-shadow: var(--shadow); overflow: hidden;
 }
-/* it follows the pointer, so it has to ride above the rows it passes over */
 /* it follows the pointer, so it has to ride above the rows it passes over,
    but stay under the sticky top bar, which is also at 5 */
 .group.dragging, .song.dragging {
-  opacity: 0.6; outline: 2px dashed var(--accent); outline-offset: -2px;
+  opacity: 0.9; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
   position: relative; z-index: 4; will-change: transform;
 }
+/* Where it will land. The row is carried off by a transform, but its place in
+   the layout never moves, so the outline is simply pushed back by the same
+   amount and lands on the gap the row left behind. */
+.group.dragging::after, .song.dragging::after {
+  content: '';
+  position: absolute; inset: 0; pointer-events: none;
+  transform: translateY(var(--slot-back, 0px));
+  border: 2px dotted var(--accent);
+  border-radius: 10px;
+  background: var(--accent-soft);
+  opacity: 0.6;
+}
+.group.dragging::after { border-radius: 14px; }
+/* The outline and the row content are both positioned, so without this the one
+   written last wins and the fill washes over the words. Lifting the content
+   puts the outline behind it, where it shows only in the gap the row left. */
+.group.dragging > *, .song.dragging > * { position: relative; z-index: 1; }
 /* a row being carried to another group leaves its card, so nothing may clip it */
 body.dragging-active .group { overflow: visible; }
 
@@ -444,10 +492,17 @@ body.dragging-active .group { overflow: visible; }
 .gap-btn:hover .txt,
 .gap-btn:focus-visible .txt { display: inline; }
 
-/* No hover to reveal them with, so they sit a little plainer instead. */
+/* Nothing on a touch screen reveals these, so they wear the accent colour from
+   the start rather than waiting for a hover that never comes. The separator
+   itself stays grey, so the rows are still told apart by a plain line. */
 @media (hover: none) {
   .gap-btn { height: 24px; }
-  .gap-label { opacity: 0.75; }
+  .gap-label {
+    opacity: 1;
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
 }
 
 /* they would only get in the way of a drag, so the rows take the line back */
@@ -651,6 +706,9 @@ dialog {
   border: 1px solid var(--line); border-radius: 14px;
 }
 dialog::backdrop { background: rgba(0, 0, 0, 0.66); }
+/* near the top, where the button that opened it is, not floating mid screen */
+#share-menu { margin-top: max(12px, env(safe-area-inset-top, 0px)); margin-bottom: auto; }
+#share-menu h2 { margin-bottom: 10px; }
 dialog h2 { margin: 0 0 6px; font: 700 19px var(--head); }
 dialog p { margin: 0; }
 dialog menu { display: flex; justify-content: flex-end; gap: 8px; margin: 16px 0 0; padding: 0; }
