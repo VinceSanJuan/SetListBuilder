@@ -428,6 +428,33 @@ check(!!added.querySelector('.song-meta .changed'), 'the changed key is marked')
 check(added.querySelector('.cam').classList.contains('changed'), 'and so is the Camelot badge');
 check(text(added.querySelector('.chip.orig')).startsWith('- orig'),
   'the original reads with a leading hyphen', text(added.querySelector('.chip.orig')));
+/* The "- orig ..." text is long, and the row it sits in used to hold the chips
+   and the buttons as one wrapping list, so the buttons went to the next line
+   first, being last. They are grouped now: the chips wrap among themselves and
+   the buttons cannot be pushed anywhere. jsdom measures nothing, so what is
+   checked is the arrangement that makes the wrapping come out that way. */
+const meta = added.querySelector('.song-meta');
+const chipBox = meta.querySelector('.meta-chips');
+const actBox = meta.querySelector('.song-acts');
+check(!!chipBox && !!actBox, 'the meta row keeps its chips and its buttons in separate groups');
+check(chipBox.contains(added.querySelector('.chip.orig')),
+  'the original key text sits with the chips');
+check(actBox.querySelectorAll('button').length >= 3,
+  'and every button sits in the other group',
+  String(actBox.querySelectorAll('button').length));
+check(!meta.querySelector(':scope > button'),
+  'no button is left loose in the row, where it would wrap before the text does');
+
+const chipStyle = window.getComputedStyle(chipBox);
+const actStyle = window.getComputedStyle(actBox);
+check(chipStyle.flexWrap === 'wrap', 'the chips are the part allowed to wrap', chipStyle.flexWrap);
+check(chipStyle.flexGrow === '1' && parseInt(chipStyle.minWidth, 10) === 0,
+  'they take the space left over, and may shrink to nothing',
+  `grow ${chipStyle.flexGrow}, min-width ${chipStyle.minWidth}`);
+check(actStyle.flexShrink === '0',
+  'while the buttons never give up any width, so they stay on the first line',
+  actStyle.flexShrink);
+
 check(/^- orig [^,]+, \d{1,2}[AB](, \d+ BPM)?$/.test(text(added.querySelector('.chip.orig'))),
   'with a comma between the key and the Camelot',
   text(added.querySelector('.chip.orig')));

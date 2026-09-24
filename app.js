@@ -562,21 +562,24 @@ function renderSong(g, e, i) {
     </div>
     ${song.artist ? `<div class="artist">${esc(song.artist)}</div>` : ''}
     <div class="song-meta">
-      <span class="chip${moved ? ' changed' : ''}">${esc(eff.key || '--')}</span>
-      <span class="chip${bpmChanged ? ' changed' : ''}">${eff.bpm ?? '--'} BPM</span>
-      ${moved || bpmChanged
-        ? `<span class="chip orig">- orig ${esc(song.key || '--')}${song.camelot ? `, ${esc(song.camelot)}` : ''}${song.bpm != null ? `, ${song.bpm} BPM` : ''}</span>`
-        : ''}
-      ${song.byHand ? '<span class="chip byhand">not in library</span>' : ''}
-      <span class="grow"></span>
-      ${song.urls.length
-        ? `<button type="button" class="linkbtn" data-act="links" aria-expanded="${linksOpen}"
-                   aria-label="Links for ${title}">${ic.link}<span>${song.urls.length}</span>${ic.chev}</button>`
-        : ''}
-      <button type="button" class="icon-btn handle" data-drag="song"
-              aria-label="Move ${title}. Drag, or press the up and down arrow keys.">${ic.move}</button>
-      <button type="button" class="icon-btn" data-act="edit-song" aria-label="Edit ${title}">${ic.edit}</button>
-      <button type="button" class="icon-btn danger" data-act="del-song" aria-label="Delete ${title}">${ic.trash}</button>
+      <div class="meta-chips">
+        <span class="chip${moved ? ' changed' : ''}">${esc(eff.key || '--')}</span>
+        <span class="chip${bpmChanged ? ' changed' : ''}">${eff.bpm ?? '--'} BPM</span>
+        ${moved || bpmChanged
+          ? `<span class="chip orig">- orig ${esc(song.key || '--')}${song.camelot ? `, ${esc(song.camelot)}` : ''}${song.bpm != null ? `, ${song.bpm} BPM` : ''}</span>`
+          : ''}
+        ${song.byHand ? '<span class="chip byhand">not in library</span>' : ''}
+      </div>
+      <div class="song-acts">
+        ${song.urls.length
+          ? `<button type="button" class="linkbtn" data-act="links" aria-expanded="${linksOpen}"
+                     aria-label="Links for ${title}">${ic.link}<span>${song.urls.length}</span>${ic.chev}</button>`
+          : ''}
+        <button type="button" class="icon-btn handle" data-drag="song"
+                aria-label="Move ${title}. Drag, or press the up and down arrow keys.">${ic.move}</button>
+        <button type="button" class="icon-btn" data-act="edit-song" aria-label="Edit ${title}">${ic.edit}</button>
+        <button type="button" class="icon-btn danger" data-act="del-song" aria-label="Delete ${title}">${ic.trash}</button>
+      </div>
     </div>
     ${shownTags.length
       ? `<div class="tags">${shownTags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}${

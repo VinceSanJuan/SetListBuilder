@@ -387,6 +387,16 @@ body.dragging-active .group { overflow: visible; }
 .artist { margin-top: 1px; color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .song-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+
+/* The chips and the buttons used to be children of one wrapping row, so when
+   the line ran out it was the buttons, being last, that dropped to the next
+   line. Grouping them makes the chips the only thing that wraps: a long
+   "- orig ..." now takes a second line of its own and the buttons stay put. */
+.meta-chips {
+  flex: 1; min-width: 0;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+}
+.song-acts { flex: none; display: flex; align-items: center; gap: 6px; }
 .grow { flex: 1; min-width: 8px; }
 
 .chip {
