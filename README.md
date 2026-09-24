@@ -160,7 +160,7 @@ artists, the themes and a YouTube link, which is read instead of the rendered te
 | `key` | the published chart key |
 | `bpm` | the song page |
 | `camelot` | **not fetched.** `music.js` works it out from the key, so the two cannot disagree |
-| `tags` | the first three themes, in lower case. The page lists the rest so you can swap one in |
+| `tags` | whichever themes you tick. PraiseCharts lists them alphabetically, so the three ticked to begin with are arbitrary. Press the chips to change them |
 | `urls` | `Youtube=` when the page has a video |
 
 **Check every row before you keep it.** Three things go wrong often enough to matter:
@@ -170,7 +170,9 @@ artists, the themes and a YouTube link, which is read instead of the rendered te
 2. The key is the key the chart is published in, which is not always the key on the
    recording. `Praise` by Elevation Worship comes back as `Ab`, not `A`.
 3. The BPM is sometimes counted at half speed. `10,000 Reasons` comes back as `70` rather
-   than `145`. Both are defensible; only one matches the rest of your file.
+   than `145`. Both are defensible; only one matches the rest of your file. When
+   PraiseCharts has no BPM at all it says `0`, which is read as nothing and leaves the cell
+   empty rather than writing a zero the validator would reject.
 
 Nothing is written to `songs.tsv`. The rows are yours to paste, so a wrong match costs you
 nothing.
@@ -252,6 +254,14 @@ itself while the panel is open. The song directly above is shown right under the
 as **Plays after**, so you can see what the next song has to follow. The result list scrolls
 inside its own box, so the other groups stay on screen. Type several words and all of them
 must match.
+
+A search looks at the title, the artist, the key, the Camelot value and the tags, but the
+results are ordered by where the words were found. The whole title comes first, then a
+title that begins with what you typed, then a title that holds all of it, then title and
+artist together, and last a song that matched only on a tag, a key or a Camelot value.
+Songs that answer equally well stay in alphabetical order. So searching `great` gives
+*Great Are You Lord* before *How Great Is Our God*, and both before a song merely tagged
+`greatness`. A song that matched on a tag shows which tag it was.
 
 **Adding one part way down.** Between every pair of songs, and above the first one, there is a
 thin line with a small plus. Point at it, or give it keyboard focus, and it grows into

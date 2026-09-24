@@ -59,7 +59,21 @@
     .got { font-weight: 600; }
     .why { margin-top: 3px; color: var(--warn); font-size: 13.5px; }
     .why.bad { color: var(--bad); }
-    .themes { margin-top: 3px; color: var(--muted); font-size: 13px; }
+    .themes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .themes .lead { width: 100%; color: var(--muted); font-size: 13px; }
+    .chip {
+      min-height: 30px; padding: 0 10px; border-radius: 999px;
+      background: transparent; color: var(--muted);
+      border: 1px solid var(--line);
+      font: 500 13px "Instrument Sans", system-ui, sans-serif; cursor: pointer;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+    }
+    .chip:hover { color: var(--ink); border-color: var(--accent); }
+    .chip[aria-pressed="true"] {
+      background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
+      font-weight: 600;
+    }
+    .chip:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
     .hint { margin: 10px 0 0; color: var(--muted); font-size: 13.5px; }
     code { background: var(--surface2); padding: 1px 5px; border-radius: 5px; font-size: 13px; }
     #offline { padding: 12px; border: 1px solid var(--bad); border-radius: 10px; color: var(--bad); }
@@ -105,12 +119,16 @@
   <p class="hint" id="out-hint" hidden>
     Check these before you keep them. The first search result is a guess, the key
     is the published chart key rather than the key on the recording, and the BPM
-    is sometimes counted at half speed. Paste onto the end of
-    <code>songs.tsv</code>, keeping one row per line.
+    is sometimes counted at half speed. Tags start as the first three themes,
+    which are alphabetical rather than the most useful, so press the chips above
+    to change them. Paste onto the end of <code>songs.tsv</code>, keeping one row
+    per line.
   </p>
 </main>
 
 <script>
+  const TAGS_TO_TICK = 3; // matches the app, which shows three tags then a +N chip
+
   const $ = (s) => document.querySelector(s);
   const q = $('#q');
   const go = $('#go');
@@ -127,9 +145,34 @@
 
   const show = (el, on = true) => { el.hidden = !on; };
 
+  // Everything found so far. Each one carries the themes it was given and the
+  // set that are ticked, so the rows can be rebuilt whenever a chip is pressed.
+  let results = [];
+
+  /**
+   * The row with only its tags cell rewritten. Every other cell, the Camelot
+   * value especially, is left exactly as the tool built it. The position of the
+   * cell comes from the tool as well, so the two cannot fall out of step.
+   */
+  function rowFor(r) {
+    const cells = r.row.split('\t');
+    cells[r.tagCell] = r.song.themes
+      .filter((t) => r.picked.has(t))
+      .map((t) => t.toLowerCase())
+      .join(';');
+    return cells.join('\t');
+  }
+
+  function writeRows() {
+    const rows = results.filter((r) => r.found).map(rowFor);
+    out.value = rows.join('\n');
+    for (const el of ['#out-head', '#out', '#out-actions', '#out-hint']) show($(el), rows.length > 0);
+    return rows.length;
+  }
+
   function render(results) {
     found.replaceChildren();
-    for (const r of results) {
+    for (const [index, r] of results.entries()) {
       const li = document.createElement('li');
       li.className = 'item' + (r.found ? '' : ' bad');
 
@@ -152,13 +195,29 @@
         li.append(why);
       }
 
-      // Only the first few themes become tags, so the rest are shown here in
-      // case a better one is further down the list.
-      if (r.found && r.song.themes.length > 3) {
-        const rest = document.createElement('div');
-        rest.className = 'themes';
-        rest.textContent = 'other themes: ' + r.song.themes.slice(3).join(', ');
-        li.append(rest);
+      // PraiseCharts lists themes alphabetically, so the ones ticked to begin
+      // with are not the most useful ones. Every theme is offered instead, and
+      // picking rewrites the row underneath.
+      if (r.found && r.song.themes.length) {
+        const themes = document.createElement('div');
+        themes.className = 'themes';
+
+        const lead = document.createElement('span');
+        lead.className = 'lead';
+        lead.textContent = 'tags, pick any:';
+        themes.append(lead);
+
+        for (const theme of r.song.themes) {
+          const chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'chip';
+          chip.textContent = theme;
+          chip.dataset.theme = theme;
+          chip.dataset.index = String(index);
+          chip.setAttribute('aria-pressed', String(r.picked.has(theme)));
+          themes.append(chip);
+        }
+        li.append(themes);
       }
       found.append(li);
     }
@@ -171,27 +230,43 @@
 
     go.disabled = true;
     found.replaceChildren();
+    out.value = '';
     for (const el of ['#out-head', '#out', '#out-actions', '#out-hint']) show($(el), false);
 
-    const results = [];
+    results = [];
     for (const [i, query] of queries.entries()) {
       status.textContent = `Looking up ${i + 1} of ${queries.length}: ${query}`;
+      let r;
       try {
-        const res = await fetch('/api/lookup?q=' + encodeURIComponent(query));
-        results.push(await res.json());
+        r = await (await fetch('/api/lookup?q=' + encodeURIComponent(query))).json();
       } catch (err) {
-        results.push({ query, found: false, notes: ['the lookup server did not answer'] });
+        r = { query, found: false, notes: ['the lookup server did not answer'] };
       }
+      // The first few are ticked so a row is ready without touching anything,
+      // but they are only a starting point.
+      r.picked = new Set(r.found ? r.song.themes.slice(0, TAGS_TO_TICK) : []);
+      results.push(r);
       render(results);
+      writeRows();
     }
 
-    const rows = results.filter((r) => r.found).map((r) => r.row);
-    out.value = rows.join('\n');
-    const ok = rows.length;
-    status.textContent = `${ok} of ${queries.length} found.`;
-    for (const el of ['#out-head', '#out', '#out-actions', '#out-hint']) show($(el), ok > 0);
+    status.textContent = `${results.filter((r) => r.found).length} of ${queries.length} found.`;
     go.disabled = false;
   }
+
+  // Delegated, because the list is redrawn as each song comes back.
+  found.addEventListener('click', (event) => {
+    const chip = event.target.closest('.chip');
+    if (!chip) return;
+    const r = results[Number(chip.dataset.index)];
+    const theme = chip.dataset.theme;
+    if (r.picked.has(theme)) r.picked.delete(theme);
+    else r.picked.add(theme);
+    // Only this chip and the rows change, so the list is left alone and the
+    // keyboard keeps its place.
+    chip.setAttribute('aria-pressed', String(r.picked.has(theme)));
+    writeRows();
+  });
 
   go.addEventListener('click', run);
   $('#copy').addEventListener('click', async () => {

@@ -6,7 +6,7 @@
    that PraiseCharts still serves what this expects. Only running the tool can.
    The fixtures copy the shape of a real page as it was in September 2026. */
 
-import { firstSongLink, songLinkFromInput, chordsUrl, parseSong, toRow }
+import { firstSongLink, songLinkFromInput, chordsUrl, parseSong, toRow, COLUMNS, TAG_CELL }
   from '../tools/lookup.mjs';
 import { reporter } from './report.mjs';
 
@@ -120,6 +120,13 @@ eq(cells, ['Washed', 'Elevation Rhythm', 'B', '139', '1B', 'blood;cleansing;forg
   'Youtube=https://www.youtube.com/watch?v=JjgkhHlTROQ'], 'and each one holds what it should');
 eq(notes, [], 'a complete song has nothing to warn about');
 
+// The page rewrites the tags by this index alone, so if the columns are ever
+// reordered and this is not, the picker would quietly overwrite the wrong cell.
+eq(COLUMNS.length, 7, 'the column list matches the width of a row');
+check(cells[TAG_CELL] === 'blood;cleansing;forgiveness',
+  'TAG_CELL points at the tags, which is what the page rewrites when you pick',
+  `cell ${TAG_CELL} holds ${JSON.stringify(cells[TAG_CELL])}`);
+
 check(cells[4] === '1B', 'the Camelot value is worked out from the key, not fetched', cells[4]);
 check(cells[5].split(';').length === 3, 'only the first three themes become tags',
   cells[5]);
@@ -142,6 +149,19 @@ check(oddKey.notes.some((n) => n.includes('check it by hand')),
 const noBpm = toRow({ ...song, bpm: '' });
 check(noBpm.notes.some((n) => n.includes('BPM')), 'a missing BPM is called out',
   noBpm.notes.join(' | '));
+
+// PraiseCharts says 0 when it does not know, and 0 as a string is truthy, so a
+// plain test for a value let it through into songs.tsv where it failed the
+// validator instead.
+for (const nothing of ['0', 0, null, undefined, '']) {
+  const s = parseSong(page(payload({ ...FULL, bpm: nothing })));
+  eq(s.bpm, '', `a BPM of ${JSON.stringify(nothing)} is read as no BPM at all`);
+  const r = toRow(s);
+  eq(r.row.split('\t')[3], '', 'so the cell is left empty rather than holding a zero');
+  check(r.notes.some((n) => n.includes('BPM')), 'and it is called out', r.notes.join(' | '));
+}
+eq(parseSong(page(payload({ ...FULL, bpm: '139' }))).bpm, '139',
+  'a real BPM still comes through');
 
 // A tab inside a cell would silently add a column and shift every later value.
 const nasty = toRow({ ...song, title: 'Odd\tTitle', artist: 'Some\nBand' });

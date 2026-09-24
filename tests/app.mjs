@@ -2,6 +2,7 @@
 /* Drive app.js against a jsdom document, so the real render path is exercised. */
 import { readFileSync } from 'node:fs';
 import { JSDOM, VirtualConsole } from 'jsdom';
+import { camelotForKey, keyForCamelot, parseCamelot, camelotStr, shift } from '../music.js';
 import { reporter } from './report.mjs';
 
 const from = (name) => new URL(`../${name}`, import.meta.url);
@@ -273,6 +274,38 @@ check(!!byTag.querySelector('.tag.hit'), 'and the row reveals the tag that match
 check(text(byTag.querySelector('.tag.hit')) === tagOnly.tag, 'naming the tag itself',
   text(byTag.querySelector('.tag.hit')));
 
+/* A word can be in one song's title and only in another song's tags. The song
+   named after it is what someone means, so it has to come first. Searching
+   "awesome" used to put a song merely tagged awesome above What An Awesome God,
+   because the results were only in alphabetical order. */
+const titles = $$('.result .r-title').map((t) => text(t).toLowerCase());
+const named = titles.map((t) => t.includes(tagOnly.tag.toLowerCase()));
+const lastNamed = named.lastIndexOf(true);
+const firstNot = named.indexOf(false);
+check(firstNot === -1 || lastNamed === -1 || lastNamed < firstNot,
+  'every song with the word in its name is listed before every song without it',
+  $$('.result .r-title').map(text).join(' | '));
+
+// the whole name of a song beats anything else that happens to contain it
+type(q, tagOnly.title);
+check(text($$('.result .r-title')[0]) === tagOnly.title,
+  'searching a whole title puts that song first',
+  $$('.result .r-title').map(text).slice(0, 4).join(' | '));
+
+// and the start of a name beats a match in the middle of a longer one
+const firstWord = tagOnly.title.split(' ')[0];
+if (firstWord.length > 2) {
+  type(q, firstWord);
+  const order = $$('.result .r-title').map(text);
+  const starts = order.map((t) => t.toLowerCase().startsWith(firstWord.toLowerCase()));
+  const lastStart = starts.lastIndexOf(true);
+  const firstOther = starts.indexOf(false);
+  check(firstOther === -1 || lastStart === -1 || lastStart < firstOther,
+    'a name beginning with the word comes before one that only contains it',
+    order.join(' | '));
+}
+type(q, tagOnly.tag);
+
 // The same search, on a song that matched by its name instead.
 const byName = $$('.result').find((r) => {
   const title = text(r.querySelector('.r-title'));
@@ -287,21 +320,52 @@ if (byName) {
 
 /* ---------- 4. adding a song ---------- */
 
-type(q, 'awesome');
-click($('.result-btn'));
+/* One song out of the library carries the rest of this section: it is added, it
+   becomes the anchor, and everything about Camelot matching is measured against
+   it. Its key and Camelot value are read from songs.tsv rather than written in
+   here, because the library is edited constantly and a key that changes there
+   should not look like the app breaking. */
+const ANCHOR = (() => {
+  const row = songsTsv.split(/\r\n|\n|\r/).slice(1)
+    .map((line) => line.split('\t'))
+    .filter((c) => c[0] && (c[4] || c[2]))
+    .find((c) => c[0] === 'What An Awesome God')
+    ?? songsTsv.split(/\r\n|\n|\r/).slice(1).map((l) => l.split('\t')).find((c) => c[0] && c[2]);
+  const cam = (row[4] || '').trim() || camelotForKey(row[2]);
+  const at = parseCamelot(cam);
+  return {
+    title: row[0],
+    cam,
+    key: keyForCamelot(cam),
+    letter: at.l,
+    hue: String((at.n - 1) * 30),
+    // the cell itself, one step either way, and the relative on the other side
+    neighbours: [cam, camelotStr(shift(at, 7)), camelotStr(shift(at, -7)),
+      at.n + (at.l === 'A' ? 'B' : 'A')],
+  };
+})();
+check(!!ANCHOR.cam && !!ANCHOR.key, 'the library gives a song to anchor the search on',
+  `${ANCHOR.title} in ${ANCHOR.key} at ${ANCHOR.cam}`);
+
+// Search by the title, and press the result for it. A single word is no longer
+// enough: "awesome" also matches a tag on another song.
+type(q, ANCHOR.title);
+click($$('.result').find((r) => text(r.querySelector('.r-title')) === ANCHOR.title)
+  .querySelector('.result-btn'));
 check(songsIn(0).length === 1, 'song added to Opening');
-check(text(songsIn(0)[0].querySelector('.song-title')) === 'What An Awesome God', 'right song added',
+check(text(songsIn(0)[0].querySelector('.song-title')) === ANCHOR.title, 'right song added',
   text(songsIn(0)[0].querySelector('.song-title')));
-check(text(songsIn(0)[0].querySelector('.song-meta')).includes('A maj'), 'key shown',
-  text(songsIn(0)[0].querySelector('.song-meta')));
-check(text(songsIn(0)[0].querySelector('.cam')) === '11B', 'Camelot badge shown',
+check(text(songsIn(0)[0].querySelector('.song-meta')).includes(ANCHOR.key), 'key shown',
+  `${text(songsIn(0)[0].querySelector('.song-meta'))} should hold ${ANCHOR.key}`);
+check(text(songsIn(0)[0].querySelector('.cam')) === ANCHOR.cam, 'Camelot badge shown',
   text(songsIn(0)[0].querySelector('.cam')));
-check(songsIn(0)[0].querySelector('.cam').classList.contains('B'),
-  'a major key gets the light B badge');
-check(songsIn(0)[0].querySelector('.cam').style.getPropertyValue('--h') === '300',
-  '11B hue is (11-1)*30', songsIn(0)[0].querySelector('.cam').style.getPropertyValue('--h'));
+check(songsIn(0)[0].querySelector('.cam').classList.contains(ANCHOR.letter),
+  `a ${ANCHOR.letter === 'B' ? 'major' : 'minor'} key gets the ${ANCHOR.letter} badge`);
+check(songsIn(0)[0].querySelector('.cam').style.getPropertyValue('--h') === ANCHOR.hue,
+  `${ANCHOR.cam} hue is (n-1)*30`,
+  songsIn(0)[0].querySelector('.cam').style.getPropertyValue('--h'));
 check(!!$('.search-panel'), 'panel stays open for the next add');
-check(text($('.anchor')).includes('What An Awesome God'), 'anchor now shows the song above');
+check(text($('.anchor')).includes(ANCHOR.title), 'anchor now shows the song above');
 check(!$('[data-act="s-compat"]').disabled, 'Camelot match is now enabled');
 check(!$('#btn-undo').disabled, 'undo became available');
 check(text($('#summary')).includes('1 song'), 'header summary counts it', text($('#summary')));
@@ -312,13 +376,14 @@ check($$('#summary .cam').length === 1, 'and shows its key badge');
 type(q, '');
 click($('[data-act="s-compat"]'));
 check(!!$('.s-semi'), 'the semitone box appears with Camelot match on');
-check(text($('.match')).includes('11B'), 'the button lists the codes that fit', text($('.match')));
+check(text($('.match')).includes(ANCHOR.cam), 'the button lists the codes that fit',
+  text($('.match')));
 const camAll = $$('.result .r-title').map(text);
 check(camAll.length > 0 && camAll.length < TOTAL, 'Camelot match narrows the list',
   `${camAll.length} of ${TOTAL}`);
-check($$('.result .cam').every((c) => ['11B', '10B', '12B', '11A'].includes(text(c))),
-  'only 11B and its neighbours are offered at 0 semitones',
-  $$('.result .cam').map(text).join(' '));
+check($$('.result .cam').every((c) => ANCHOR.neighbours.includes(text(c))),
+  `only ${ANCHOR.cam} and its neighbours are offered at 0 semitones`,
+  `${$$('.result .cam').map(text).join(' ')} against ${ANCHOR.neighbours.join(' ')}`);
 check(shiftChips().length === 0, 'no transposed rows while the limit is 0');
 check(text($('.rcount')).includes('that fit'), 'count line says these fit', text($('.rcount')));
 

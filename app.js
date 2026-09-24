@@ -155,13 +155,35 @@ function matchedTags(song, query) {
   return [...hits];
 }
 
+/**
+ * How well a song answers what was typed. A search word is nearly always part of
+ * a name, so those songs come first and a word found only in a tag comes last.
+ * Without this, "awesome" put a song tagged awesome above the one actually
+ * called What An Awesome God, because the list was only in alphabetical order.
+ */
+function searchRank(song, words, query) {
+  const title = song.title.toLowerCase();
+  const artist = (song.artist ?? '').toLowerCase();
+  if (title === query) return 4; // the song asked for, by its whole name
+  if (title.startsWith(query)) return 3; // the start of its name
+  if (words.every((w) => title.includes(w))) return 2; // every word, somewhere in the name
+  if (words.every((w) => `${title} ${artist}`.includes(w))) return 1; // name and artist together
+  return 0; // only a tag, a key or a Camelot value
+}
+
 function searchSongs(text) {
-  const words = text.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const query = text.trim().toLowerCase();
+  const words = query.split(/\s+/).filter(Boolean);
   if (!words.length) return songs;
-  return songs.filter((s) => {
+
+  const hits = songs.filter((s) => {
     const hay = [s.title, s.artist, s.key, s.camelot, ...s.tags].join(' ').toLowerCase();
     return words.every((w) => hay.includes(w));
   });
+
+  // songs is already in title order, and sort is stable, so songs that answer
+  // the search equally well stay in alphabetical order within their group.
+  return hits.sort((a, b) => searchRank(b, words, query) - searchRank(a, words, query));
 }
 
 /* ---------- state ---------- */

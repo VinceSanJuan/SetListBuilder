@@ -24,8 +24,18 @@ import { camelotForKey } from '../music.js';
 const SITE = 'https://www.praisecharts.com';
 const UA = 'SetListBuilder-lookup/1.0 (+https://github.com/VinceSanJuan/SetListBuilder)';
 
-/** Themes are plentiful. Only the first few earn a place in the tags column. */
+/**
+ * Themes are plentiful and PraiseCharts lists them alphabetically, so the first
+ * few are not the most useful few. This many are ticked to begin with, and the
+ * page lets you change which ones.
+ */
 export const TAG_LIMIT = 3;
+
+/** The columns of songs.tsv, in order. */
+export const COLUMNS = ['title', 'artist', 'key', 'bpm', 'camelot', 'tags', 'urls'];
+
+/** Where the tags sit in a row. The page rewrites that one cell as you pick. */
+export const TAG_CELL = COLUMNS.indexOf('tags');
 
 /* ---------- pulling the data out of a page ---------- */
 
@@ -89,7 +99,10 @@ export function parseSong(html) {
     title: String(hit.catalog_item_title).trim(),
     artist: calm((item.artists ?? []).map((a) => a.name).join(', ').trim()),
     key: item.original_key ? String(item.original_key).trim() : '',
-    bpm: item.bpm ? String(item.bpm).trim() : '',
+    // PraiseCharts writes 0 when it has no BPM rather than leaving the field
+    // out. As a string that is truthy, so it has to be tested as a number or a
+    // zero ends up in the file and the validator rejects it there.
+    bpm: Number(item.bpm) > 0 ? String(item.bpm).trim() : '',
     themes: (item.themes ?? []).map((t) => t.theme).filter(Boolean),
     youtube: item.youtube_url ?? '',
     ccli: item.copyright?.ccli ?? '',
@@ -182,7 +195,15 @@ export async function lookup(query) {
   }
 
   const built = toRow(song);
-  return { query, found: true, song, url, row: built.row, notes: [...notes, ...built.notes] };
+  return {
+    query,
+    found: true,
+    song,
+    url,
+    row: built.row,
+    tagCell: TAG_CELL, // so the page need not know the column order itself
+    notes: [...notes, ...built.notes],
+  };
 }
 
 /* ---------- command line ---------- */
